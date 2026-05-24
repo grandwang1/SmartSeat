@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# SQLite 資料庫（執行時會重新生成）
+smartseat.db
+
+# 程式輸出（執行時會重新生成）
+outputs/
+
+# IDE
+.vscode/
+.idea/

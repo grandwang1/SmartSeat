@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SmartSeat</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>SmartSeat 智慧座位安排系統</h1>
+      <p class="hint">
+        框選教室、貼上學生名單後，系統會打散同組順序，再以梅花座規則依序排位。
+      </p>
+
+      <section class="panel">
+        <h2>步驟 1：設定教室</h2>
+        <div class="toolbar">
+          <label class="mode-btn">
+            <input type="radio" name="editor-mode" value="room" checked />
+            框選教室範圍
+          </label>
+          <label class="mode-btn">
+            <input type="radio" name="editor-mode" value="block" />
+            標記不可用座位
+          </label>
+          <button type="button" id="clear-room-btn" class="secondary">清除全部設定</button>
+        </div>
+        <p id="room-info" class="room-info">尚未框選教室（在格線上拖曳滑鼠框選矩形區域）</p>
+        <div class="seatmap-options">
+          <button type="button" id="col-reverse-btn" class="secondary">排數左右對調</button>
+          <span id="col-reverse-hint" class="hint small">目前：最左側為第 1 排</span>
+        </div>
+
+        <div class="editor-layout">
+          <aside id="block-palette" class="block-palette" hidden>
+            <p class="palette-title">先選原因，再拖曳框選</p>
+            <div class="block-reason-btns">
+              <button type="button" class="reason-btn block-board" data-reason="黑板">黑板</button>
+              <button type="button" class="reason-btn block-door" data-reason="門">門</button>
+              <button type="button" class="reason-btn block-blank" data-reason="空白">不坐人</button>
+            </div>
+            <button type="button" id="erase-block-btn" class="secondary">清除框選區標記</button>
+            <p id="block-hint" class="hint small">已選：<strong id="selected-reason-text">（尚未選擇）</strong></p>
+          </aside>
+          <div id="editor-wrap" class="editor-wrap"></div>
+        </div>
+        <p class="hint small">
+          標記不可用時請先選原因，再在教室區塊拖曳框選；按「清除框選區標記」即可進入／結束清除模式。
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>步驟 2：貼上學生名單</h2>
+        <p class="hint small">
+          欄位順序：<strong>組別、學號、系級、姓名</strong>（組別請填數字 1、2、3…；系級可留空）。
+        </p>
+
+        <div class="roster-toolbar">
+          <label class="mode-btn">
+            <input type="radio" name="roster-source" value="custom" checked />
+            貼上自訂名單
+          </label>
+          <label class="mode-btn">
+            <input type="radio" name="roster-source" value="mock" />
+            使用系統 mock 名單
+          </label>
+        </div>
+
+        <div id="roster-editor">
+          <div class="roster-actions">
+            <a class="btn-link" href="/api/students/template.csv" download>下載空白範本 CSV</a>
+            <label class="btn-link file-label">
+              上傳 CSV 檔
+              <input type="file" id="roster-file" accept=".csv,.txt,text/csv" hidden />
+            </label>
+            <button type="button" id="load-mock-text-btn" class="secondary">載入 mock 範例</button>
+            <button type="button" id="parse-roster-btn">解析名單</button>
+            <span id="roster-count" class="roster-count">尚未解析</span>
+          </div>
+
+          <label for="roster-text">名單內容（CSV 或 Excel 複製貼上）</label>
+          <textarea id="roster-text" rows="12"></textarea>
+
+          <div id="roster-preview-wrap" hidden>
+            <h3>解析預覽（前 15 筆）</h3>
+            <div class="roster-table-wrap">
+              <table class="roster-table">
+                <thead>
+                  <tr>
+                    <th>組別</th>
+                    <th>學號</th>
+                    <th>系級</th>
+                    <th>姓名</th>
+                  </tr>
+                </thead>
+                <tbody id="roster-preview-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <p id="mock-roster-hint" class="hint small" hidden>已選擇 mock 名單。</p>
+      </section>
+
+      <section class="panel">
+        <h2>步驟 3：排位</h2>
+        <label for="course">考試名稱</label>
+        <input id="course" value="資料庫期中考" />
+
+        <label for="room-name">考場名稱</label>
+        <input id="room-name" value="270103" />
+
+        <button id="run-btn">一鍵排位</button>
+        <button type="button" id="preview-shuffle-btn" class="secondary">預覽打散後名單</button>
+      </section>
+
+      <section class="panel" id="shuffle-panel" hidden>
+        <h2>打散後名單（前 20 筆預覽）</h2>
+        <ol id="shuffle-list"></ol>
+      </section>
+
+      <section class="panel" id="result-panel" hidden>
+        <h2>排位結果</h2>
+        <p id="result-text"></p>
+        <div class="result-actions" id="result-actions" hidden>
+          <a id="download-link" href="#">下載座位表（含顏色 Excel）</a>
+          <a id="report-link" href="#" target="_blank" rel="noopener">下載座位表 PDF</a>
+        </div>
+      </section>
+
+      <section class="panel" id="seatmap-panel" hidden>
+        <h2>座位圖預覽</h2>
+        <div id="seatmap-wrap"></div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

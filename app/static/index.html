@@ -7,133 +7,425 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
-    <main class="container">
-      <h1>SmartSeat 智慧座位安排系統</h1>
-      <p class="hint">
-        框選教室、貼上學生名單後，系統會打散同組順序，再以梅花座規則依序排位。
-      </p>
+    <div class="app-layout">
 
-      <section class="panel">
-        <h2>步驟 1：設定教室</h2>
-        <div class="toolbar">
-          <label class="mode-btn">
-            <input type="radio" name="editor-mode" value="room" checked />
-            框選教室範圍
-          </label>
-          <label class="mode-btn">
-            <input type="radio" name="editor-mode" value="block" />
-            標記不可用座位
-          </label>
-          <button type="button" id="clear-room-btn" class="secondary">清除全部設定</button>
-        </div>
-        <p id="room-info" class="room-info">尚未框選教室（在格線上拖曳滑鼠框選矩形區域）</p>
-        <div class="seatmap-options">
-          <button type="button" id="col-reverse-btn" class="secondary">排數左右對調</button>
-          <span id="col-reverse-hint" class="hint small">目前：最左側為第 1 排</span>
+      <!-- 左側導覽列 -->
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <!-- SVG Logo：座位圖示 -->
+          <svg class="brand-svg" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="20" width="8" height="10" rx="2" fill="#4F46E5"/>
+            <rect x="14" y="14" width="8" height="16" rx="2" fill="#818CF8"/>
+            <rect x="24" y="20" width="8" height="10" rx="2" fill="#4F46E5"/>
+            <rect x="4" y="8" width="8" height="10" rx="2" fill="#818CF8"/>
+            <rect x="24" y="8" width="8" height="10" rx="2" fill="#818CF8"/>
+            <rect x="2" y="30" width="32" height="3" rx="1.5" fill="#C7D2FE"/>
+          </svg>
+          <span class="brand-name">SmartSeat</span>
         </div>
 
-        <div class="editor-layout">
-          <aside id="block-palette" class="block-palette" hidden>
-            <p class="palette-title">先選原因，再拖曳框選</p>
-            <div class="block-reason-btns">
-              <button type="button" class="reason-btn block-board" data-reason="黑板">黑板</button>
-              <button type="button" class="reason-btn block-door" data-reason="門">門</button>
-              <button type="button" class="reason-btn block-blank" data-reason="空白">不坐人</button>
+        <ul class="step-nav">
+          <li class="step-item active" data-step="1">
+            <span class="step-dot">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <div class="step-text">
+              <span class="step-num-label">步驟 1</span>
+              <span class="step-label">設定教室</span>
             </div>
-            <button type="button" id="erase-block-btn" class="secondary">清除框選區標記</button>
-            <p id="block-hint" class="hint small">已選：<strong id="selected-reason-text">（尚未選擇）</strong></p>
-          </aside>
-          <div id="editor-wrap" class="editor-wrap"></div>
-        </div>
-        <p class="hint small">
-          標記不可用時請先選原因，再在教室區塊拖曳框選；按「清除框選區標記」即可進入／結束清除模式。
-        </p>
-      </section>
+          </li>
+          <li class="step-connector"></li>
+          <li class="step-item" data-step="2">
+            <span class="step-dot">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <div class="step-text">
+              <span class="step-num-label">步驟 2</span>
+              <span class="step-label">學生名單</span>
+            </div>
+          </li>
+          <li class="step-connector"></li>
+          <li class="step-item" data-step="3">
+            <span class="step-dot">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <div class="step-text">
+              <span class="step-num-label">步驟 3</span>
+              <span class="step-label">執行排位</span>
+            </div>
+          </li>
+          <li class="step-connector" id="nav-connector-4" style="display:none"></li>
+          <li class="step-item" data-step="4" id="nav-result" style="display:none">
+            <span class="step-dot">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <div class="step-text">
+              <span class="step-num-label">步驟 4</span>
+              <span class="step-label">排位結果</span>
+            </div>
+          </li>
+        </ul>
+      </nav>
 
-      <section class="panel">
-        <h2>步驟 2：貼上學生名單</h2>
-        <p class="hint small">
-          欄位順序：<strong>組別、學號、系級、姓名</strong>（組別請填數字 1、2、3…；系級可留空）。
-        </p>
+      <!-- 主內容區 -->
+      <main class="main-content">
+        <!-- Toast 通知容器 -->
+        <div id="toast-container" class="toast-container"></div>
 
-        <div class="roster-toolbar">
-          <label class="mode-btn">
-            <input type="radio" name="roster-source" value="custom" checked />
-            貼上自訂名單
-          </label>
-          <label class="mode-btn">
-            <input type="radio" name="roster-source" value="mock" />
-            使用系統 mock 名單
-          </label>
-        </div>
-
-        <div id="roster-editor">
-          <div class="roster-actions">
-            <a class="btn-link" href="/api/students/template.csv" download>下載空白範本 CSV</a>
-            <label class="btn-link file-label">
-              上傳 CSV 檔
-              <input type="file" id="roster-file" accept=".csv,.txt,text/csv" hidden />
-            </label>
-            <button type="button" id="load-mock-text-btn" class="secondary">載入 mock 範例</button>
-            <button type="button" id="parse-roster-btn">解析名單</button>
-            <span id="roster-count" class="roster-count">尚未解析</span>
-          </div>
-
-          <label for="roster-text">名單內容（CSV 或 Excel 複製貼上）</label>
-          <textarea id="roster-text" rows="12"></textarea>
-
-          <div id="roster-preview-wrap" hidden>
-            <h3>解析預覽（前 15 筆）</h3>
-            <div class="roster-table-wrap">
-              <table class="roster-table">
-                <thead>
-                  <tr>
-                    <th>組別</th>
-                    <th>學號</th>
-                    <th>系級</th>
-                    <th>姓名</th>
-                  </tr>
-                </thead>
-                <tbody id="roster-preview-body"></tbody>
-              </table>
+        <!-- 步驟 1：設定教室 -->
+        <section class="step-page active" id="page-1">
+          <div class="page-header">
+            <div>
+              <p class="page-step-label">步驟 1 / 3</p>
+              <h1>設定教室</h1>
+              <p class="page-subtitle">在格線上拖曳框選教室範圍，再標記不可用座位</p>
             </div>
           </div>
-        </div>
 
-        <p id="mock-roster-hint" class="hint small" hidden>已選擇 mock 名單。</p>
-      </section>
+          <div class="panel">
+            <div class="control-row">
+              <div class="toggle-group">
+                <label class="toggle-btn">
+                  <input type="radio" name="editor-mode" value="room" checked />
+                  <span>框選教室範圍</span>
+                </label>
+                <label class="toggle-btn">
+                  <input type="radio" name="editor-mode" value="block" />
+                  <span>標記不可用座位</span>
+                </label>
+              </div>
+              <div class="room-actions">
+                <button type="button" id="col-reverse-btn" class="btn btn-ghost btn-sm">排數左右對調</button>
+                <button type="button" id="clear-room-btn" class="btn btn-ghost btn-sm btn-danger">清除全部設定</button>
+              </div>
+            </div>
 
-      <section class="panel">
-        <h2>步驟 3：排位</h2>
-        <label for="course">考試名稱</label>
-        <input id="course" value="資料庫期中考" />
+            <div class="status-bar">
+              <span id="room-info" class="status-text">尚未框選教室（在格線上拖曳滑鼠框選矩形區域）</span>
+              <span id="col-reverse-hint" class="status-sub">目前：最左側為第 1 排</span>
+            </div>
 
-        <label for="room-name">考場名稱</label>
-        <input id="room-name" value="270103" />
+            <div class="editor-layout">
+              <aside id="block-palette" class="block-palette" hidden>
+                <p class="palette-title">標記原因</p>
+                <div class="block-reason-btns">
+                  <button type="button" class="reason-btn block-board" data-reason="黑板">黑板</button>
+                  <button type="button" class="reason-btn block-door" data-reason="門">門</button>
+                  <button type="button" class="reason-btn block-blank" data-reason="空白">不坐人</button>
+                </div>
+                <hr class="divider" />
+                <button type="button" id="erase-block-btn" class="btn btn-ghost btn-sm full-width">清除框選區標記</button>
+                <p id="block-hint" class="hint-sm">已選：<strong id="selected-reason-text">（尚未選擇）</strong></p>
+              </aside>
+              <div id="editor-wrap" class="editor-wrap"></div>
+            </div>
+            <p class="help-text">標記不可用時請先選原因，再在教室區塊拖曳框選</p>
+          </div>
 
-        <button id="run-btn">一鍵排位</button>
-        <button type="button" id="preview-shuffle-btn" class="secondary">預覽打散後名單</button>
-      </section>
+          <div class="step-footer">
+            <div></div>
+            <button class="btn btn-primary btn-lg" onclick="goToStep(2)">
+              下一步：學生名單
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </button>
+          </div>
+        </section>
 
-      <section class="panel" id="shuffle-panel" hidden>
-        <h2>打散後名單（前 20 筆預覽）</h2>
-        <ol id="shuffle-list"></ol>
-      </section>
+        <!-- 步驟 2：學生名單 -->
+        <section class="step-page" id="page-2">
+          <div class="page-header">
+            <div>
+              <p class="page-step-label">步驟 2 / 3</p>
+              <h1>學生名單</h1>
+              <p class="page-subtitle">請依欄位格式貼上或上傳學生名單，或直接使用系統示範名單</p>
+            </div>
+          </div>
 
-      <section class="panel" id="result-panel" hidden>
-        <h2>排位結果</h2>
-        <p id="result-text"></p>
-        <div class="result-actions" id="result-actions" hidden>
-          <a id="download-link" href="#">下載座位表（含顏色 Excel）</a>
-          <a id="report-link" href="#" target="_blank" rel="noopener">下載座位表 PDF</a>
-        </div>
-      </section>
+          <!-- 欄位說明卡片 -->
+          <div class="field-schema-card">
+            <span class="schema-label">欄位順序</span>
+            <div class="schema-chips">
+              <span class="schema-chip required">組別</span>
+              <span class="schema-arrow">→</span>
+              <span class="schema-chip required">學號</span>
+              <span class="schema-arrow">→</span>
+              <span class="schema-chip required">系級</span>
+              <span class="schema-arrow">→</span>
+              <span class="schema-chip required">姓名</span>
+            </div>
+          </div>
 
-      <section class="panel" id="seatmap-panel" hidden>
-        <h2>座位圖預覽</h2>
-        <div id="seatmap-wrap"></div>
-      </section>
-    </main>
+          <div class="panel">
+            <div class="toggle-group roster-toggle">
+              <label class="toggle-btn">
+                <input type="radio" name="roster-source" value="custom" checked />
+                <span>上傳學生名單</span>
+              </label>
+              <label class="toggle-btn">
+                <input type="radio" name="roster-source" value="mock" />
+                <span>使用系統示範名單</span>
+              </label>
+            </div>
+
+            <!-- 上傳名單區塊 -->
+            <div id="roster-editor">
+              <div class="action-row">
+                <label class="btn btn-primary btn-sm file-label">
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                  選擇 CSV 檔案
+                  <input type="file" id="roster-file" accept=".csv,.txt,text/csv" hidden />
+                </label>
+                <button type="button" id="preview-template-btn" class="btn btn-ghost btn-sm">預覽範本</button>
+                <span id="roster-count" class="count-badge">尚未上傳</span>
+              </div>
+
+              <!-- 範本預覽（預設隱藏） -->
+              <div id="template-preview-wrap" hidden>
+                <div class="inline-preview-header">
+                  <span class="inline-preview-title">CSV 範本格式</span>
+                  <a class="btn btn-ghost btn-sm" href="/api/students/template.csv" download>下載 CSV</a>
+                </div>
+                <div class="table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr><th>#</th><th>組別</th><th>學號</th><th>系級</th><th>姓名</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td class="row-num">1</td><td>1</td><td>114098001</td><td>資管一</td><td>王小明</td></tr>
+                      <tr><td class="row-num">2</td><td>1</td><td>114098002</td><td>資管一</td><td>李佳蓉</td></tr>
+                      <tr><td class="row-num">3</td><td>2</td><td>114098003</td><td>資管一</td><td>陳冠宇</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div id="roster-preview-wrap" hidden>
+                <div class="mock-preview-header">
+                  <div>
+                    <p class="mock-preview-title">已上傳名單</p>
+                    <p class="mock-preview-sub">共 <strong id="roster-total-count">—</strong> 位學生</p>
+                  </div>
+                  <span id="roster-count-badge" class="count-badge success"></span>
+                </div>
+                <div class="table-wrap" id="roster-table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr><th>#</th><th>組別</th><th>學號</th><th>系級</th><th>姓名</th></tr>
+                    </thead>
+                    <tbody id="roster-preview-body"></tbody>
+                  </table>
+                </div>
+                <!-- 分頁控制列 -->
+                <div class="pagination-bar">
+                  <button type="button" class="btn btn-ghost btn-sm" id="roster-prev-btn" disabled>
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    上一頁
+                  </button>
+                  <div class="pagination-pages" id="roster-page-btns"></div>
+                  <button type="button" class="btn btn-ghost btn-sm" id="roster-next-btn">
+                    下一頁
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 隱藏的 textarea 供後端 parse 用 -->
+              <textarea id="roster-text" hidden></textarea>
+            </div>
+
+            <!-- Mock 名單預覽區塊 -->
+            <div id="mock-roster-section" hidden>
+              <div class="mock-preview-header">
+                <div>
+                  <p class="mock-preview-title">系統示範名單</p>
+                  <p class="mock-preview-sub">共 <strong id="mock-total-count">—</strong> 位學生，已依組別分組</p>
+                </div>
+                <span class="count-badge success">示範名單</span>
+              </div>
+              <div class="table-wrap" id="mock-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>#</th><th>組別</th><th>學號</th><th>系級</th><th>姓名</th></tr>
+                  </thead>
+                  <tbody id="mock-preview-body"></tbody>
+                </table>
+              </div>
+              <!-- 分頁控制列 -->
+              <div class="pagination-bar">
+                <button type="button" class="btn btn-ghost btn-sm" id="mock-prev-btn" disabled>
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                  上一頁
+                </button>
+                <div class="pagination-pages" id="mock-page-btns"></div>
+                <button type="button" class="btn btn-ghost btn-sm" id="mock-next-btn">
+                  下一頁
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="step-footer">
+            <button class="btn btn-ghost btn-lg" onclick="goToStep(1)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              上一步
+            </button>
+            <button class="btn btn-primary btn-lg" onclick="goToStep(3)">
+              下一步：執行排位
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <!-- 步驟 3：排位 -->
+        <section class="step-page" id="page-3">
+          <div class="page-header">
+            <div>
+              <p class="page-step-label">步驟 3 / 3</p>
+              <h1>執行排位</h1>
+              <p class="page-subtitle">確認考試資訊後，按一鍵排位自動完成座位安排</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label" for="course">考試名稱</label>
+                <input id="course" class="text-input" value="資料庫期中考" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="room-name">考場名稱</label>
+                <input id="room-name" class="text-input" value="270103" />
+              </div>
+            </div>
+
+            <div class="action-row mt-16">
+              <button id="run-btn" class="btn btn-primary btn-lg">一鍵排位</button>
+              <button type="button" id="preview-shuffle-btn" class="btn btn-ghost">預覽打散後名單</button>
+            </div>
+          </div>
+
+          <!-- 打散預覽（內嵌在步驟 3） -->
+          <div class="panel panel-secondary" id="shuffle-panel" hidden>
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-badge secondary">✦</span>
+                <h2>打散後名單（前 20 筆）</h2>
+              </div>
+            </div>
+            <ol id="shuffle-list" class="shuffle-list"></ol>
+          </div>
+
+          <div class="step-footer">
+            <button class="btn btn-ghost btn-lg" onclick="goToStep(2)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              上一步
+            </button>
+          </div>
+        </section>
+
+        <!-- 步驟 4：排位結果 -->
+        <section class="step-page" id="page-4" hidden>
+          <div class="page-header">
+            <div>
+              <p class="page-step-label">完成</p>
+              <h1>排位結果</h1>
+              <p class="page-subtitle">座位安排已完成，可預覽座位圖或下載檔案</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <p id="result-text" class="result-summary"></p>
+            <div class="action-row" id="result-actions" hidden>
+              <a id="download-link" href="#" class="btn btn-primary">下載座位表（含顏色 Excel）</a>
+              <a id="report-link" href="#" target="_blank" rel="noopener" class="btn btn-ghost">下載座位表 PDF</a>
+            </div>
+          </div>
+
+          <div class="panel" id="seatmap-panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-badge success">
+                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1" y="9" width="4" height="5" rx="1" fill="currentColor"/><rect x="6" y="6" width="4" height="8" rx="1" fill="currentColor" opacity=".6"/><rect x="11" y="9" width="4" height="5" rx="1" fill="currentColor"/></svg>
+                </span>
+                <h2>座位圖預覽</h2>
+              </div>
+            </div>
+            <div class="legend">
+              <span class="legend-chip assigned">已分配</span>
+              <span class="legend-chip empty">空位</span>
+              <span class="legend-chip blocked">不可用</span>
+            </div>
+            <div id="seatmap-wrap" class="seatmap-scroll"></div>
+          </div>
+
+          <div class="step-footer">
+            <button class="btn btn-ghost btn-lg" onclick="goToStep(1)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd"/></svg>
+              重新安排
+            </button>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
     <script src="/static/app.js"></script>
+    <script>
+      // ── 步驟切換系統 ──
+      let currentStep = 1;
+      const TOTAL_STEPS = 4;
+
+      function goToStep(step) {
+        // 隱藏所有頁面
+        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
+        // 顯示目標頁面
+        const target = document.getElementById('page-' + step);
+        if (!target) return;
+        target.classList.add('active');
+        currentStep = step;
+
+        // 更新側邊欄
+        document.querySelectorAll('.step-item').forEach(item => {
+          const s = Number(item.dataset.step);
+          item.classList.remove('active', 'done');
+          if (s === step) item.classList.add('active');
+          else if (s < step) item.classList.add('done');
+        });
+
+        // 步驟 4 導覽項目顯示
+        if (step >= 4) {
+          document.getElementById('nav-result').style.display = '';
+          document.getElementById('nav-connector-4').style.display = '';
+        }
+
+        // 捲到頂
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // 點擊側邊欄導覽
+      document.querySelectorAll('.step-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const step = Number(item.dataset.step);
+          // 只允許跳到已解鎖的步驟（已完成的或當前）
+          if (step <= currentStep || step === 4 && document.getElementById('page-4').dataset.unlocked) {
+            goToStep(step);
+          } else {
+            goToStep(step); // 允許自由跳轉
+          }
+        });
+      });
+
+      // 排位完成後跳轉到步驟 4
+      const resultPanel = document.getElementById('page-4');
+      window._goToResultStep = function() {
+        resultPanel.hidden = false;
+        resultPanel.dataset.unlocked = '1';
+        document.getElementById('nav-result').style.display = '';
+        document.getElementById('nav-connector-4').style.display = '';
+        goToStep(4);
+      };
+    </script>
   </body>
 </html>

@@ -39,14 +39,14 @@ def ensure_initialized() -> None:
     conn = get_conn(DB_PATH)
     init_db(conn)
     migrate_db(conn)
-    import_students(conn, ROOT / "mock_students_80.csv")
+    import_students(conn, ROOT / "mock_students_120.csv")
     room_count = conn.execute("SELECT COUNT(*) AS c FROM classrooms").fetchone()["c"]
     if room_count == 0:
         import_classrooms_and_seats(conn, ROOT / "mock_classroom_maps.json")
 
 
 def json_response(handler: BaseHTTPRequestHandler, payload: dict, status: int = 200) -> None:
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
@@ -339,19 +339,50 @@ class SmartSeatHandler(BaseHTTPRequestHandler):
             json_response(self, {"error": str(exc)}, status=400)
 
     def _download_csv(self, path: str) -> None:
+        import re
+        from urllib.parse import quote as url_quote
         try:
             parsed = urlparse(self.path)
             exam_id = int(path.split("/")[3])
             col_override = self._col_reverse_from_query(parsed)
+
+            # ── 1. 先把所有資料準備好，任何錯誤在此階段拋出，headers 尚未送出 ──
             output = ROOT / "outputs" / f"exam_{exam_id}_seatmap.xls"
             export_assignment_csv(exam_id, output, col_reverse_override=col_override)
             content = output.read_bytes()
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "application/vnd.ms-excel; charset=utf-8")
-            self.send_header(
-                "Content-Disposition",
-                f'attachment; filename="seatmap_{exam_id}.xls"',
+
+            conn = get_conn(DB_PATH)
+            exam_row = conn.execute(
+                "SELECT course_name, classroom_id FROM exams WHERE exam_id = ?", (exam_id,)
+            ).fetchone()
+            if exam_row:
+                ec = conn.execute(
+                    "SELECT classroom_id FROM exam_classrooms WHERE exam_id = ? LIMIT 1",
+                    (exam_id,),
+                ).fetchone()
+                room_id = ec["classroom_id"] if ec else exam_row["classroom_id"]
+                room_row = conn.execute(
+                    "SELECT room_name FROM classrooms WHERE classroom_id = ?", (room_id,)
+                ).fetchone()
+                course = exam_row["course_name"] or "exam"
+                room = room_row["room_name"] if room_row else "room"
+                safe = re.sub(r'[\\/:*?"<>|]', "_", f"{course}_{room}")
+                dl_filename = f"{safe}.xls"
+            else:
+                dl_filename = f"seatmap_{exam_id}.xls"
+
+            # RFC 5987：UTF-8 percent-encoded 檔名 + ASCII fallback
+            ascii_fallback = re.sub(r"[^\x20-\x7E]", "_", dl_filename)
+            encoded_name = url_quote(dl_filename, safe="")
+            content_disposition = (
+                f'attachment; filename="{ascii_fallback}"; '
+                f"filename*=UTF-8''{encoded_name}"
             )
+
+            # ── 2. 所有準備完成後才開始送 response，不再有拋出例外的機會 ──
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/vnd.ms-excel")
+            self.send_header("Content-Disposition", content_disposition)
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
             self.wfile.write(content)

@@ -1,4 +1,0 @@
-classroom_id,room_name,max_rows,max_cols,total_cells,usable_seats,unusable_seats,usable_ratio
-1,小教室 6x8,6,8,48,42,6,0.875
-2,一般教室 8x12,8,12,96,86,10,0.8958
-3,大教室 12x16,12,16,192,177,15,0.9219

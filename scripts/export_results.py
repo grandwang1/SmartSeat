@@ -113,6 +113,51 @@ def build_colored_excel_html(
     )
     cols = list(range(1, show_cols + 1))
 
+    # 計算不可用格的合併範圍（橫向優先，再縱向擴展成矩形）
+    # 「不坐人（空白）」不參與合併，只合併黑板、門等具名原因
+    def _get_block_note(x, y):
+        seat = matrix.get((x, y))
+        if seat and seat.get("is_usable") == 0:
+            note = seat.get("block_note") or ""
+            if is_blank_block(note):
+                return None  # 不坐人不合併
+            return note
+        return None
+
+    merged_cells = {}  # (x,y) -> {colspan, rowspan, note} 或 None（被合併掉）
+    skip = set()
+    for y in range(1, show_rows + 1):
+        for x in range(1, show_cols + 1):
+            if (x, y) in skip:
+                continue
+            note = _get_block_note(x, y)
+            if note is None:
+                continue
+            # 橫向延伸
+            cx = x + 1
+            while cx <= show_cols and _get_block_note(cx, y) == note and (cx, y) not in skip:
+                cx += 1
+            colspan = cx - x
+            # 縱向延伸
+            cy = y + 1
+            while cy <= show_rows:
+                if all(
+                    _get_block_note(x + dx, cy) == note and (x + dx, cy) not in skip
+                    for dx in range(colspan)
+                ):
+                    cy += 1
+                else:
+                    break
+            rowspan = cy - y
+            # 標記被合併格
+            for dy in range(rowspan):
+                for dx in range(colspan):
+                    if dx == 0 and dy == 0:
+                        continue
+                    skip.add((x + dx, y + dy))
+                    merged_cells[(x + dx, y + dy)] = None
+            merged_cells[(x, y)] = {"colspan": colspan, "rowspan": rowspan, "note": note}
+
     rows_html = []
     header = "<tr><td style='background:#f3f4f6;text-align:center;font-weight:600'></td>"
     for x in cols:
@@ -128,7 +173,29 @@ def build_colored_excel_html(
             f"{row_label.get(y, '')}</td>"
         )
         for x in cols:
-            row += _excel_cell_html(matrix[(x, y)])
+            merge = merged_cells.get((x, y), "NOT_BLOCKED")
+            if merge is None:
+                # 被合併掉的格，跳過
+                continue
+            if isinstance(merge, dict):
+                # 合併格左上角：輸出含 colspan/rowspan 的 td
+                note = merge["note"]
+                cs = merge["colspan"]
+                rs = merge["rowspan"]
+                cs_attr = f' colspan="{cs}"' if cs > 1 else ""
+                rs_attr = f' rowspan="{rs}"' if rs > 1 else ""
+                center = "text-align:center;vertical-align:middle;"
+                if is_blank_block(note):
+                    row += (
+                        f'<td{cs_attr}{rs_attr} style="{center}background:#fee2e2;'
+                        f'color:#dc2626;font-weight:700;font-size:14px">✕</td>'
+                    )
+                else:
+                    label = block_note_label(note)
+                    style = block_inline_style(note)
+                    row += f'<td{cs_attr}{rs_attr} style="{center}{style}">{label}</td>'
+            else:
+                row += _excel_cell_html(matrix[(x, y)])
         rows_html.append(row + "</tr>")
 
     return f"""<!DOCTYPE html>

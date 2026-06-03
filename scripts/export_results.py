@@ -20,6 +20,7 @@ from smartseat_seatmap_style import (
     has_valid_student,
     is_blank_block,
     seatmap_excel_css,
+    split_name,
 )
 
 
@@ -69,7 +70,8 @@ def _fetch_seatmap_data(conn, exam_id: int) -> tuple[dict, dict, list[dict]]:
 
 
 def _excel_cell_html(seat: dict) -> str:
-    center = "text-align:center;vertical-align:middle;"
+    cell_size = "width:110px;height:110px;"
+    center = f"text-align:center;vertical-align:middle;{cell_size}"
     if seat.get("is_usable") == 0:
         if is_blank_block(seat.get("block_note")):
             return (
@@ -84,11 +86,17 @@ def _excel_cell_html(seat: dict) -> str:
     if not has_valid_student(seat):
         return f'<td style="{center}background:#f9fafb"></td>'
     sid = seat["student_id"].strip().replace("&", "&amp;").replace("<", "&lt;")
-    name = seat["student_name"].strip().replace("&", "&amp;").replace("<", "&lt;")
+    chinese_name, english_name = split_name(seat["student_name"].strip())
+    cn = chinese_name.replace("&", "&amp;").replace("<", "&lt;")
+    en_div = ""
+    if english_name:
+        en = english_name.replace("&", "&amp;").replace("<", "&lt;")
+        en_div = f'<div style="font-size:9px;font-weight:500;color:#6b7280;white-space:normal;word-break:break-word">{en}</div>'
     return (
-        f'<td style="{center}background:#dbeafe;padding:6px 10px;white-space:nowrap">'
+        f'<td style="{center}background:#dbeafe;padding:4px 6px">'
         f'<div style="font-size:11px;font-weight:600;white-space:nowrap">{sid}</div>'
-        f'<div style="font-size:11px;font-weight:600;white-space:nowrap">{name}</div></td>'
+        f'<div style="font-size:11px;font-weight:600;white-space:nowrap">{cn}</div>'
+        f'{en_div}</td>'
     )
 
 

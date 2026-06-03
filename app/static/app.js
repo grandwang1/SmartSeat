@@ -460,12 +460,17 @@ function paintEditor() {
     }
   });
 
-  if (roomBounds && !dragStart) {
+  if (dragStart && dragCurrent) {
+    const b = normalizeBounds(dragStart, dragCurrent);
+    const rows = b.r1 - b.r0 + 1;
+    const cols = b.c1 - b.c0 + 1;
+    roomInfo.textContent = `框選中：${rows} 列 × ${cols} 欄（共 ${rows * cols} 格）`;
+  } else if (roomBounds) {
     const rows = roomBounds.r1 - roomBounds.r0 + 1;
     const cols = roomBounds.c1 - roomBounds.c0 + 1;
     const usable = rows * cols - blocked.size;
     roomInfo.textContent = `教室大小：${rows} 列 × ${cols} 欄（可用約 ${usable} 格）`;
-  } else if (!dragStart) {
+  } else {
     roomInfo.textContent = "尚未框選教室（在格線上拖曳滑鼠框選矩形區域）";
   }
 
@@ -573,6 +578,27 @@ function getLayoutPayload() {
   return { rows, cols, blocked: blockedPayload };
 }
 
+// Split a name into Chinese and English parts.
+// Format: "陳大文 (David Chen)" or "陳大文(David Chen)" or "David Chen 陳大文"
+function splitName(fullName) {
+  // Case 1: Chinese followed by English in parentheses, e.g. "馬子立(Maxence Cotonnec)"
+  const parenMatch = fullName.match(/^([一-鿿]+)\s*\(([^)]+)\)$/);
+  if (parenMatch) {
+    return { chineseName: parenMatch[1], englishName: parenMatch[2].trim() };
+  }
+  // Case 2: pure Chinese (2–4 chars) + space + English, e.g. "陳大文 David Chen"
+  const spaceMatch = fullName.match(/^([一-鿿]{2,4})\s+([A-Za-z].+)$/);
+  if (spaceMatch) {
+    return { chineseName: spaceMatch[1], englishName: spaceMatch[2].trim() };
+  }
+  // Case 3: English + space + Chinese, e.g. "David Chen 陳大文"
+  const enFirstMatch = fullName.match(/^([A-Za-z][A-Za-z\s]+)\s+([一-鿿]{2,4})$/);
+  if (enFirstMatch) {
+    return { chineseName: enFirstMatch[2], englishName: enFirstMatch[1].trim() };
+  }
+  return { chineseName: fullName, englishName: "" };
+}
+
 function fillSeatCell(td, seat) {
   if (!seat || seat.is_usable === 0) {
     const note = seat?.block_note || "";
@@ -593,9 +619,11 @@ function fillSeatCell(td, seat) {
     return;
   }
   td.className = "assigned";
+  const { chineseName, englishName } = splitName(seat.student_name.trim());
   td.innerHTML = `
     <div class="cell-id">${escapeHtml(seat.student_id.trim())}</div>
-    <div class="cell-name">${escapeHtml(seat.student_name.trim())}</div>
+    <div class="cell-name">${escapeHtml(chineseName)}</div>
+    ${englishName ? `<div class="cell-name-en">${escapeHtml(englishName)}</div>` : ""}
   `;
   td.title = `${seat.student_id} ${seat.student_name}`;
 }

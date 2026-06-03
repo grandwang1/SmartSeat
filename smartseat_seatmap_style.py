@@ -133,6 +133,24 @@ def has_valid_student(seat: dict) -> bool:
     return True
 
 
+def split_name(full_name: str) -> tuple[str, str]:
+    """Return (chinese_name, english_name). english_name is empty if not present."""
+    name = full_name.strip()
+    # "陳大文(David Chen)" or "陳大文 (David Chen)"
+    m = re.match(r'^([一-鿿]+)\s*\(([^)]+)\)$', name)
+    if m:
+        return m.group(1), m.group(2).strip()
+    # "陳大文 David Chen"
+    m = re.match(r'^([一-鿿]{2,4})\s+([A-Za-z].+)$', name)
+    if m:
+        return m.group(1), m.group(2).strip()
+    # "David Chen 陳大文"
+    m = re.match(r'^([A-Za-z][A-Za-z\s]+)\s+([一-鿿]{2,4})$', name)
+    if m:
+        return m.group(2), m.group(1).strip()
+    return name, ""
+
+
 def render_seat_cell_html(seat: dict) -> str:
     center = "text-align:center;vertical-align:middle;"
     if seat.get("is_usable") == 0:
@@ -149,11 +167,13 @@ def render_seat_cell_html(seat: dict) -> str:
     if not has_valid_student(seat):
         return f'<td class="empty" style="{center}background:{EMPTY_BG}"></td>'
     sid = html.escape(seat["student_id"].strip())
-    name = html.escape(seat["student_name"].strip())
+    chinese_name, english_name = split_name(seat["student_name"].strip())
+    en_div = f'<div class="cell-name-en">{html.escape(english_name)}</div>' if english_name else ""
     return (
         f'<td class="assigned" style="{center}background:{ASSIGNED_BG}">'
         f'<div class="cell-id">{sid}</div>'
-        f'<div class="cell-name">{name}</div></td>'
+        f'<div class="cell-name">{html.escape(chinese_name)}</div>'
+        f'{en_div}</td>'
     )
 
 
@@ -220,13 +240,14 @@ def seatmap_print_css() -> str:
       font-size: 10px; padding: 4px 2px;
     }}
     th.axis {{ background: {LABEL_BG} !important; font-weight: 600; width: 32px; min-width: 32px; }}
-    td {{ width: 110px; height: 52px; padding: 4px 6px; white-space: nowrap; }}
+    td {{ width: 110px; height: 110px; padding: 4px 6px; }}
     td.assigned {{ background: {ASSIGNED_BG} !important; }}
     td.empty {{ background: {EMPTY_BG} !important; color: #9ca3af; }}
     td.block-other {{ background: #e5e5e0 !important; }}
 {block_rules}
     .cell-id {{ font-weight: 600; font-size: 11px; color: #374151; white-space: nowrap; }}
     .cell-name {{ font-weight: 600; font-size: 11px; white-space: nowrap; }}
+    .cell-name-en {{ font-size: 9px; font-weight: 500; color: #6b7280; white-space: normal; word-break: break-word; }}
     .no-print {{ margin-bottom: 12px; }}
     @media print {{ .no-print {{ display: none; }} body {{ margin: 12px; }} }}
 """

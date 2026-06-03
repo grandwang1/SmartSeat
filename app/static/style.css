@@ -893,7 +893,7 @@ table {
 
 .seatmap-table td {
   width: 88px;
-  height: 54px;
+  height: 88px;
   border: 1px solid var(--border);
   font-size: 11px;
   padding: 4px 4px;
@@ -919,6 +919,14 @@ table {
   font-weight: 600;
   white-space: nowrap;
   color: var(--text);
+}
+
+.cell-name-en {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-sub);
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* ── Legend ── */

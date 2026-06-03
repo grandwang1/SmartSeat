@@ -69,35 +69,50 @@ def _fetch_seatmap_data(conn, exam_id: int) -> tuple[dict, dict, list[dict]]:
     return dict(exam), dict(room), [dict(r) for r in seat_rows]
 
 
+_CELL_W = "108pt"  # 9 digits × ~10pt/char at 9pt font ≈ 81pt; 108pt gives safe margin
+_CELL_H = "108pt"
+# In Excel HTML (.xls) format:
+# - <br> creates a NEW cell, not a line break within the cell.
+# - The only way to get an in-cell line break is to use a literal newline
+#   character inside the text node (no inner tags at all), combined with
+#   white-space:pre-wrap on the <td>.
+# - Font 9pt in 108pt column: 9 digits × ~7pt ≈ 63pt — fits with room to spare.
+_CELL_BASE = (
+    f"width:{_CELL_W};height:{_CELL_H};"
+    "text-align:center;vertical-align:middle;"
+    "font-size:11pt;font-weight:700;padding:4px;"
+    "white-space:pre-wrap;mso-wrap-text:wrap;"
+)
+# Literal newline used as the in-cell line separator
+_NL = "\n"
+
+
+def _esc(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;")
+
+
 def _excel_cell_html(seat: dict) -> str:
-    cell_size = "width:110px;height:110px;"
-    center = f"text-align:center;vertical-align:middle;{cell_size}"
     if seat.get("is_usable") == 0:
         if is_blank_block(seat.get("block_note")):
             return (
-                f'<td style="{center}background:#fee2e2;color:#dc2626;'
-                f'font-weight:700;font-size:14px">✕</td>'
+                f'<td style="{_CELL_BASE}background:#fee2e2;'
+                f'color:#dc2626;font-size:14pt;">✕</td>'
             )
         note = seat.get("block_note") or ""
-        cls = block_note_class(note)
         label = block_note_label(note)
         style = block_inline_style(note)
-        return f'<td class="{cls}" style="{center}{style}">{label}</td>'
+        return f'<td style="{_CELL_BASE}{style}">{_esc(label)}</td>'
     if not has_valid_student(seat):
-        return f'<td style="{center}background:#f9fafb"></td>'
-    sid = seat["student_id"].strip().replace("&", "&amp;").replace("<", "&lt;")
+        return f'<td style="{_CELL_BASE}background:#f9fafb;"></td>'
+    sid = _esc(seat["student_id"].strip())
     chinese_name, english_name = split_name(seat["student_name"].strip())
-    cn = chinese_name.replace("&", "&amp;").replace("<", "&lt;")
-    en_div = ""
+    cn = _esc(chinese_name)
+    # Use a literal newline (no tags) as the in-cell line break for Excel.
     if english_name:
-        en = english_name.replace("&", "&amp;").replace("<", "&lt;")
-        en_div = f'<div style="font-size:9px;font-weight:500;color:#6b7280;white-space:normal;word-break:break-word">{en}</div>'
-    return (
-        f'<td style="{center}background:#dbeafe;padding:4px 6px">'
-        f'<div style="font-size:11px;font-weight:600;white-space:nowrap">{sid}</div>'
-        f'<div style="font-size:11px;font-weight:600;white-space:nowrap">{cn}</div>'
-        f'{en_div}</td>'
-    )
+        content = f"{sid}{_NL}{cn}{_NL}{_esc(english_name)}"
+    else:
+        content = f"{sid}{_NL}{cn}"
+    return f'<td style="{_CELL_BASE}background:#dbeafe;">{content}</td>'
 
 
 def build_colored_excel_html(
@@ -166,20 +181,26 @@ def build_colored_excel_html(
                     merged_cells[(x + dx, y + dy)] = None
             merged_cells[(x, y)] = {"colspan": colspan, "rowspan": rowspan, "note": note}
 
+    label_style = (
+        f"width:{_CELL_W};height:{_CELL_H};background:#f3f4f6;"
+        "text-align:center;vertical-align:middle;"
+        "font-weight:700;font-size:10pt;padding:2px;"
+    )
+    corner_style = f"width:{_CELL_W};height:{_CELL_H};background:#f3f4f6;"
+    col_label_style = (
+        f"width:{_CELL_W};height:{_CELL_H};background:#f3f4f6;"
+        "text-align:center;vertical-align:middle;"
+        "font-weight:700;font-size:10pt;padding:2px;"
+    )
+
     rows_html = []
-    header = "<tr><td style='background:#f3f4f6;text-align:center;font-weight:600'></td>"
+    header = f"<tr><td style='{corner_style}'></td>"
     for x in cols:
-        header += (
-            "<td style='background:#f3f4f6;text-align:center;font-weight:600'>"
-            f"{col_label.get(x, '')}</td>"
-        )
+        header += f"<td style='{col_label_style}'>{col_label.get(x, '')}</td>"
     rows_html.append(header + "</tr>")
 
     for y in range(1, show_rows + 1):
-        row = (
-            "<tr><td style='background:#f3f4f6;text-align:center;font-weight:600'>"
-            f"{row_label.get(y, '')}</td>"
-        )
+        row = f"<tr><td style='{label_style}'>{row_label.get(y, '')}</td>"
         for x in cols:
             merge = merged_cells.get((x, y), "NOT_BLOCKED")
             if merge is None:

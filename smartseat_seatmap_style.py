@@ -177,6 +177,56 @@ def render_seat_cell_html(seat: dict) -> str:
     )
 
 
+def _compute_block_merges(
+    matrix: dict[tuple[int, int], dict],
+    show_rows: int,
+    show_cols: int,
+) -> dict[tuple[int, int], dict | None]:
+    """Compute colspan/rowspan merges for named block cells (not blank/空白)."""
+
+    def _block_note(x: int, y: int) -> str | None:
+        seat = matrix.get((x, y))
+        if not seat or seat.get("is_usable") != 0:
+            return None
+        note = (seat.get("block_note") or "").strip()
+        if is_blank_block(note):
+            return None  # 不坐人不合併
+        return note or None
+
+    merged: dict[tuple[int, int], dict | None] = {}
+    skip: set[tuple[int, int]] = set()
+
+    for y in range(1, show_rows + 1):
+        for x in range(1, show_cols + 1):
+            if (x, y) in skip:
+                continue
+            note = _block_note(x, y)
+            if note is None:
+                continue
+            # 橫向延伸
+            cx = x + 1
+            while cx <= show_cols and _block_note(cx, y) == note and (cx, y) not in skip:
+                cx += 1
+            colspan = cx - x
+            # 縱向延伸
+            cy = y + 1
+            while cy <= show_rows and all(
+                _block_note(x + dx, cy) == note and (x + dx, cy) not in skip
+                for dx in range(colspan)
+            ):
+                cy += 1
+            rowspan = cy - y
+            for dy in range(rowspan):
+                for dx in range(colspan):
+                    if dx == 0 and dy == 0:
+                        continue
+                    skip.add((x + dx, y + dy))
+                    merged[(x + dx, y + dy)] = None
+            merged[(x, y)] = {"colspan": colspan, "rowspan": rowspan, "note": note}
+
+    return merged
+
+
 def build_seatmap_table_html(
     matrix: dict[tuple[int, int], dict],
     max_rows: int,
@@ -186,9 +236,10 @@ def build_seatmap_table_html(
     row_label, col_label = compute_seat_labels(
         matrix, max_rows, max_cols, col_reverse
     )
-    # 只保留到最後一位學生為止的範圍，後面空白的格子不輸出
     show_rows, show_cols = _bounds_with_students(matrix, max_rows, max_cols)
     cols = list(range(1, show_cols + 1))
+    merged = _compute_block_merges(matrix, show_rows, show_cols)
+
     parts: list[str] = ['<table class="seatmap-table">']
 
     header = ['<tr><th class="axis"></th>']
@@ -200,7 +251,23 @@ def build_seatmap_table_html(
     for y in range(1, show_rows + 1):
         parts.append(f'<tr><th class="axis">{row_label.get(y, "")}</th>')
         for x in cols:
-            parts.append(render_seat_cell_html(matrix[(x, y)]))
+            merge = merged.get((x, y), "NOT_BLOCKED")
+            if merge is None:
+                # 被合併掉的格，跳過
+                continue
+            if isinstance(merge, dict):
+                note = merge["note"]
+                cs_attr = f' colspan="{merge["colspan"]}"' if merge["colspan"] > 1 else ""
+                rs_attr = f' rowspan="{merge["rowspan"]}"' if merge["rowspan"] > 1 else ""
+                center = "text-align:center;vertical-align:middle;"
+                label = html.escape(block_note_label(note))
+                style = block_inline_style(note)
+                cls = block_note_class(note)
+                parts.append(
+                    f'<td{cs_attr}{rs_attr} class="{cls}" style="{center}{style}">{label}</td>'
+                )
+            else:
+                parts.append(render_seat_cell_html(matrix[(x, y)]))
         parts.append("</tr>")
 
     parts.append("</table>")
@@ -264,4 +331,47 @@ def normalize_group_value(raw: str) -> str:
     m = re.search(r"\d+", g)
     if m:
         return m.group()
-    raise ValueError(f"組別必須為數字（例如 1、2、3），收到：{raw}")
+    # Pure-text group label (e.g. "Group TA", "助教") — return as-is;
+    # the caller is responsible for batch-normalizing all group labels to
+    # consistent integer strings via normalize_group_labels_to_int().
+    return g
+
+
+_group_label_cache: dict[str, str] = {}
+
+
+def normalize_group_labels_to_int(students: list[dict]) -> list[dict]:
+    """Map arbitrary group label strings to stable integer strings.
+
+    Labels that already look like integers are kept.  Pure-text labels
+    (e.g. "Group TA", "助教") are assigned the next available integer in
+    the order they are first encountered, so the mapping is deterministic
+    within a single call.
+    """
+    label_map: dict[str, str] = {}
+    next_int: list[int] = [1]
+
+    def _assign(label: str) -> str:
+        if label in label_map:
+            return label_map[label]
+        if re.fullmatch(r"\d+", label):
+            label_map[label] = label
+            return label
+        m = re.search(r"\d+", label)
+        if m:
+            label_map[label] = m.group()
+            return m.group()
+        # Pure text — assign the next available integer
+        while str(next_int[0]) in label_map.values():
+            next_int[0] += 1
+        assigned = str(next_int[0])
+        next_int[0] += 1
+        label_map[label] = assigned
+        return assigned
+
+    result = []
+    for s in students:
+        s = dict(s)
+        s["group_name"] = _assign(s.get("group_name", ""))
+        result.append(s)
+    return result

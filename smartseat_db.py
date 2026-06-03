@@ -190,15 +190,15 @@ def create_exam(
         (course_name, exam_date, classroom_id, 1 if col_reverse else 0),
     )
     exam_id = cur.lastrowid
-    selected_rooms = classroom_ids[:] if classroom_ids else [classroom_id]
-    selected_rooms = sorted(set(int(cid) for cid in selected_rooms))
+    cted_rooms = classroom_ids[:] if classroom_ids else [classroom_id]
+    cted_rooms = sorted(set(int(cid) for cid in cted_rooms))
     conn.executemany(
         """
         INSERT INTO exam_classrooms(exam_id, classroom_id)
         VALUES(?, ?)
         ON CONFLICT(exam_id, classroom_id) DO NOTHING
         """,
-        [(exam_id, cid) for cid in selected_rooms],
+        [(exam_id, cid) for cid in cted_rooms],
     )
     conn.commit()
     return exam_id

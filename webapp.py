@@ -12,7 +12,13 @@ from urllib.parse import parse_qs, urlparse
 
 from scripts.export_report import build_report_html
 from scripts.export_results import export_assignment_csv
-from smartseat_roster_parse import ROSTER_TEMPLATE_CSV, parse_roster_text
+from smartseat_roster_parse import (
+    ROSTER_TEMPLATE_CSV,
+    extract_csv_headers,
+    extract_csv_rows,
+    parse_roster_text,
+    parse_roster_with_mapping,
+)
 from scripts.run_assignment import save_assignments
 from smartseat_allocator import assign_seats_serial_checkerboard
 from smartseat_db import (
@@ -100,6 +106,12 @@ class SmartSeatHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/parse-roster":
             self._parse_roster()
             return
+        if parsed.path == "/api/csv-headers":
+            self._get_csv_headers()
+            return
+        if parsed.path == "/api/csv-preview":
+            self._get_csv_preview()
+            return
         json_response(self, {"error": "Not Found"}, status=404)
 
     def _serve_file(self, path: Path) -> None:
@@ -128,15 +140,30 @@ class SmartSeatHandler(BaseHTTPRequestHandler):
 
     def _resolve_students(self, payload: dict) -> list[dict]:
         use_mock = payload.get("use_mock_students", False)
+        excluded = set(payload.get("excluded_ids") or [])
         if use_mock:
             conn = get_conn(DB_PATH)
-            return fetch_all_students(conn)
+            students = fetch_all_students(conn)
+            if excluded:
+                students = [s for s in students if s["student_id"] not in excluded]
+            return students
         roster_text = (payload.get("roster_text") or "").strip()
+        column_mapping = payload.get("column_mapping")
         if roster_text:
-            return parse_roster_text(roster_text)
+            if column_mapping:
+                # Pass excluded_ids into parser so group-label normalisation
+                # runs only on the students that will actually be seated.
+                return parse_roster_with_mapping(roster_text, column_mapping, excluded_ids=excluded)
+            students = parse_roster_text(roster_text)
+            if excluded:
+                students = [s for s in students if s["student_id"] not in excluded]
+            return students
         raw = payload.get("students", [])
         if raw:
-            return normalize_students_payload(raw)
+            students = normalize_students_payload(raw)
+            if excluded:
+                students = [s for s in students if s["student_id"] not in excluded]
+            return students
         raise ValueError("請貼上學生名單並按「解析名單」，或選擇使用 mock 名單")
 
     def _download_roster_template(self) -> None:
@@ -151,11 +178,42 @@ class SmartSeatHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
+    def _get_csv_headers(self) -> None:
+        try:
+            payload = parse_json_body(self)
+            roster_text = (payload.get("roster_text") or "").strip()
+            if not roster_text:
+                raise ValueError("請提供 CSV 內容")
+            headers = extract_csv_headers(roster_text)
+            json_response(self, {"headers": headers})
+        except Exception as exc:
+            json_response(self, {"error": str(exc)}, status=400)
+
+    def _get_csv_preview(self) -> None:
+        """Return raw CSV headers + all data rows (as dicts) for the pre-parse exclusion UI."""
+        try:
+            payload = parse_json_body(self)
+            roster_text = (payload.get("roster_text") or "").strip()
+            if not roster_text:
+                raise ValueError("請提供 CSV 內容")
+            headers = extract_csv_headers(roster_text)
+            rows = extract_csv_rows(roster_text)
+            json_response(self, {"headers": headers, "rows": rows})
+        except Exception as exc:
+            json_response(self, {"error": str(exc)}, status=400)
+
     def _parse_roster(self) -> None:
         try:
             payload = parse_json_body(self)
             roster_text = (payload.get("roster_text") or "").strip()
-            students = parse_roster_text(roster_text)
+            column_mapping = payload.get("column_mapping")
+            excluded = set(payload.get("excluded_ids") or [])
+            if column_mapping:
+                students = parse_roster_with_mapping(roster_text, column_mapping, excluded_ids=excluded)
+            else:
+                students = parse_roster_text(roster_text)
+                if excluded:
+                    students = [s for s in students if s["student_id"] not in excluded]
             json_response(
                 self,
                 {

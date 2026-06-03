@@ -7,10 +7,13 @@ function showToast(message, type = "error") {
   toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span class="toast-msg">${message}</span><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
   container.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("show"));
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 300);
-  }, type === "error" ? 5000 : 3500);
+  setTimeout(
+    () => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 300);
+    },
+    type === "error" ? 5000 : 3500,
+  );
 }
 
 const GRID_SIZE = 20;
@@ -39,8 +42,12 @@ const seatmapWrap = document.getElementById("seatmap-wrap");
 const downloadLink = document.getElementById("download-link");
 const reportLink = document.getElementById("report-link");
 const resultActions = document.getElementById("result-actions");
-const shufflePanel = document.getElementById("shuffle-panel");
-const shuffleList = document.getElementById("shuffle-list");
+const shufflePanel      = document.getElementById("shuffle-panel");
+const shuffleList       = document.getElementById("shuffle-list");
+const shuffleCountBadge = document.getElementById("shuffle-count-badge");
+const shufflePrevBtn    = document.getElementById("shuffle-prev-btn");
+const shuffleNextBtn    = document.getElementById("shuffle-next-btn");
+const shufflePageBtns   = document.getElementById("shuffle-page-btns");
 const rosterEditor = document.getElementById("roster-editor");
 const mockRosterSection = document.getElementById("mock-roster-section");
 const rosterCount = document.getElementById("roster-count");
@@ -61,11 +68,49 @@ const mockPrevBtn = document.getElementById("mock-prev-btn");
 const mockNextBtn = document.getElementById("mock-next-btn");
 const mockPageBtns = document.getElementById("mock-page-btns");
 
+// ── 欄位對應 & 排除面板 DOM refs ──
+const columnMappingWrap = document.getElementById("column-mapping-wrap");
+const mapGroup          = document.getElementById("map-group");
+const mapStudentId      = document.getElementById("map-student-id");
+const mapDept           = document.getElementById("map-dept");
+const mapName           = document.getElementById("map-name");
+const mapLastName       = document.getElementById("map-last-name");
+const mapFirstName      = document.getElementById("map-first-name");
+const nameSingleRow     = document.getElementById("name-single-row");
+const nameSplitRow      = document.getElementById("name-split-row");
+const mappingGroupHint  = document.getElementById("mapping-group-hint");
+const applyMappingBtn   = document.getElementById("apply-mapping-btn");
+
+const excludePanel        = document.getElementById("exclude-panel");
+const excludeGroupSelect  = document.getElementById("exclude-group-select");
+const excludeGroupBtn     = document.getElementById("exclude-group-btn");
+const excludedGroupsChips = document.getElementById("excluded-groups-chips");
+const excludeFilterSelect = document.getElementById("exclude-filter-select");
+const excludeTableHead    = document.getElementById("exclude-table-head");
+const excludeTableBody    = document.getElementById("exclude-table-body");
+const excludeCountBadge   = document.getElementById("exclude-count-badge");
+const excludeApplyBtn     = document.getElementById("exclude-apply-btn");
+const excludePrevBtn      = document.getElementById("exclude-prev-btn");
+const excludeNextBtn      = document.getElementById("exclude-next-btn");
+const excludePageBtns     = document.getElementById("exclude-page-btns");
+const rosterSortSelect    = document.getElementById("roster-sort-select");
+
 const PAGE_SIZE = 20;
 let mockAllStudents = [];
 let mockCurrentPage = 1;
 let rosterAllStudents = [];
 let rosterCurrentPage = 1;
+
+// ── 欄位對應 & 排除狀態 ──
+let excludedIds    = new Set();   // raw id-col values to exclude
+let excludedGroups = new Set();   // group-col values excluded in bulk
+let csvRawHeaders  = [];
+let csvRawRows     = [];
+let csvGroupCol    = "";
+let csvIdCol       = "";
+let currentMapping = null;        // column_mapping last applied
+let excludeCurrentPage   = 1;     // 排除面板目前頁碼
+let excludeFilteredRows  = [];    // 目前篩選後的 rows（供分頁用）
 
 let roomBounds = null;
 const blocked = new Map();
@@ -75,6 +120,7 @@ let selectedBlockReason = null;
 let eraseBlockMode = false;
 let rosterParsed = false;
 let rosterDirty = true;
+let uploadedFilename = "";
 let colReverse = false;
 let lastSeatmapPayload = null;
 let lastExamId = null;
@@ -84,7 +130,10 @@ function getEditorMode() {
 }
 
 function useMockRoster() {
-  return document.querySelector('input[name="roster-source"]:checked').value === "mock";
+  return (
+    document.querySelector('input[name="roster-source"]:checked').value ===
+    "mock"
+  );
 }
 
 function columnIndices(maxCols) {
@@ -149,7 +198,9 @@ function selectBlockReason(reason) {
 function enterEraseMode() {
   eraseBlockMode = true;
   selectedBlockReason = null;
-  document.querySelectorAll(".reason-btn").forEach((b) => b.classList.remove("active"));
+  document
+    .querySelectorAll(".reason-btn")
+    .forEach((b) => b.classList.remove("active"));
   selectedReasonText.textContent = "清除模式：拖曳框選要清除的格子";
   eraseBlockBtn.classList.add("active-toggle");
   eraseBlockBtn.textContent = "結束清除模式";
@@ -194,7 +245,16 @@ async function loadMockPreview() {
   }
 }
 
-function renderPagedTable(students, page, bodyEl, prevBtn, nextBtn, pageBtnsEl, setPage, tableWrapEl) {
+function renderPagedTable(
+  students,
+  page,
+  bodyEl,
+  prevBtn,
+  nextBtn,
+  pageBtnsEl,
+  setPage,
+  tableWrapEl,
+) {
   const total = students.length;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const cur = Math.max(1, Math.min(page, totalPages));
@@ -206,7 +266,10 @@ function renderPagedTable(students, page, bodyEl, prevBtn, nextBtn, pageBtnsEl, 
   bodyEl.innerHTML = "";
   slice.forEach((s, i) => {
     const tr = document.createElement("tr");
-    const dept = s.department_grade && s.department_grade !== "-" ? s.department_grade : "";
+    const dept =
+      s.department_grade && s.department_grade !== "-"
+        ? s.department_grade
+        : "";
     tr.innerHTML = `<td class="row-num">${start + i + 1}</td><td>${escapeHtml(s.group_name)}</td><td>${escapeHtml(s.student_id)}</td><td>${escapeHtml(dept)}</td><td>${escapeHtml(s.student_name)}</td>`;
     bodyEl.appendChild(tr);
   });
@@ -222,7 +285,16 @@ function renderPagedTable(students, page, bodyEl, prevBtn, nextBtn, pageBtnsEl, 
     btn.textContent = String(p);
     btn.addEventListener("click", () => {
       setPage(p);
-      renderPagedTable(students, p, bodyEl, prevBtn, nextBtn, pageBtnsEl, setPage, tableWrapEl);
+      renderPagedTable(
+        students,
+        p,
+        bodyEl,
+        prevBtn,
+        nextBtn,
+        pageBtnsEl,
+        setPage,
+        tableWrapEl,
+      );
     });
     pageBtnsEl.appendChild(btn);
   }
@@ -233,19 +305,33 @@ function renderPagedTable(students, page, bodyEl, prevBtn, nextBtn, pageBtnsEl, 
 
 function renderMockPage(page) {
   renderPagedTable(
-    mockAllStudents, page,
-    mockPreviewBody, mockPrevBtn, mockNextBtn, mockPageBtns,
-    (p) => { mockCurrentPage = p; },
-    document.getElementById("mock-table-wrap")
+    mockAllStudents,
+    page,
+    mockPreviewBody,
+    mockPrevBtn,
+    mockNextBtn,
+    mockPageBtns,
+    (p) => {
+      mockCurrentPage = p;
+    },
+    document.getElementById("mock-table-wrap"),
   );
 }
 
 function renderRosterPage(page) {
+  const key = rosterSortSelect ? rosterSortSelect.value : "group_name";
+  const sorted = sortStudents(rosterAllStudents, key === "group" ? "group_name" : key);
   renderPagedTable(
-    rosterAllStudents, page,
-    rosterPreviewBody, rosterPrevBtn, rosterNextBtn, rosterPageBtns,
-    (p) => { rosterCurrentPage = p; },
-    document.getElementById("roster-table-wrap")
+    sorted,
+    page,
+    rosterPreviewBody,
+    rosterPrevBtn,
+    rosterNextBtn,
+    rosterPageBtns,
+    (p) => {
+      rosterCurrentPage = p;
+    },
+    document.getElementById("roster-table-wrap"),
   );
 }
 
@@ -255,8 +341,49 @@ function markRosterDirty() {
   rosterAllStudents = [];
   rosterCurrentPage = 1;
   rosterPreviewWrap.hidden = true;
+  columnMappingWrap.hidden = true;
+  excludePanel.hidden = true;
+  excludedIds.clear();
+  excludedGroups.clear();
+  csvRawHeaders = [];
+  csvRawRows = [];
+  currentMapping = null;
+  uploadedFilename = "";
   rosterCount.textContent = "尚未上傳";
   rosterCount.className = "count-badge";
+}
+
+function updateRosterSummaryCard() {
+  const nameEl   = document.getElementById("roster-summary-name");
+  const badgeEl  = document.getElementById("roster-summary-badge");
+  if (!nameEl || !badgeEl) return;
+  if (useMockRoster()) {
+    nameEl.textContent  = "系統示範名單";
+    badgeEl.textContent = `共 ${mockAllStudents.length} 人`;
+    badgeEl.className   = "roster-summary-badge";
+  } else if (rosterParsed && !rosterDirty) {
+    const excl = excludedIds.size > 0 ? `（已排除 ${excludedIds.size} 人）` : "";
+    nameEl.textContent  = uploadedFilename || "自訂名單";
+    badgeEl.textContent = `共 ${rosterAllStudents.length} 人${excl}`;
+    badgeEl.className   = "roster-summary-badge success";
+  } else {
+    nameEl.textContent  = "尚未設定";
+    badgeEl.textContent = "";
+    badgeEl.className   = "roster-summary-badge warning";
+  }
+}
+
+function sortStudents(students, key) {
+  return [...students].sort((a, b) => {
+    const av = (a[key] || "").toString();
+    const bv = (b[key] || "").toString();
+    // Numeric sort for group_name and student_id when both look like numbers
+    if (key === "group_name" || key === "student_id") {
+      const an = Number(av), bn = Number(bv);
+      if (!isNaN(an) && !isNaN(bn)) return an - bn;
+    }
+    return av.localeCompare(bv, "zh-Hant");
+  });
 }
 
 function renderRosterPreview(students) {
@@ -266,7 +393,19 @@ function renderRosterPreview(students) {
   rosterTotalCount.textContent = String(total);
   rosterCountBadge.textContent = `已解析 ${total} 人`;
   rosterPreviewWrap.hidden = false;
-  renderRosterPage(1);
+  applySortAndRender();
+}
+
+function applySortAndRender() {
+  const key = rosterSortSelect ? rosterSortSelect.value : "group_name";
+  const sorted = sortStudents(rosterAllStudents, key === "group" ? "group_name" : key);
+  rosterCurrentPage = 1;
+  renderPagedTable(
+    sorted, 1,
+    rosterPreviewBody, rosterPrevBtn, rosterNextBtn, rosterPageBtns,
+    (p) => { rosterCurrentPage = p; },
+    document.getElementById("roster-table-wrap"),
+  );
 }
 
 function escapeHtml(s) {
@@ -276,13 +415,37 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;");
 }
 
-async function parseRoster() {
+function getNameMode() {
+  return document.querySelector('input[name="name-mode"]:checked').value;
+}
+
+function buildColumnMapping() {
+  const isSplit = getNameMode() === "split";
+  const mapping = {
+    group_name:       mapGroup.value,
+    student_id:       mapStudentId.value,
+    department_grade: mapDept.value,
+  };
+  if (isSplit) {
+    mapping.last_name  = mapLastName.value;
+    mapping.first_name = mapFirstName.value;
+  } else {
+    mapping.student_name = mapName.value;
+  }
+  return mapping;
+}
+
+// Parse roster with current mapping + exclusion list, update preview
+async function parseRoster(mapping = null, excluded = null) {
   const text = rosterText.value.trim();
   if (!text) throw new Error("請貼上或上傳學生名單");
+  const body = { roster_text: text };
+  if (mapping) body.column_mapping = mapping;
+  if (excluded && excluded.size > 0) body.excluded_ids = [...excluded];
   const res = await fetch("/api/parse-roster", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ roster_text: text }),
+    body: JSON.stringify(body),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "解析失敗");
@@ -296,10 +459,310 @@ async function parseRoster() {
 function getRosterPayload() {
   if (useMockRoster()) return { use_mock_students: true };
   if (!rosterParsed || rosterDirty) {
-    throw new Error("請先按「解析名單」確認資料正確");
+    throw new Error("請先完成名單設定並套用排除");
   }
-  return { roster_text: rosterText.value.trim() };
+  const payload = { roster_text: rosterText.value.trim() };
+  if (currentMapping) payload.column_mapping = currentMapping;
+  if (excludedIds.size > 0) payload.excluded_ids = [...excludedIds];
+  return payload;
 }
+
+// ── 欄位對應 UI ──
+
+function populateMappingSelects(headers) {
+  const allSelects = [mapGroup, mapStudentId, mapDept, mapName, mapLastName, mapFirstName];
+  allSelects.forEach((sel) => {
+    const cur = sel.value;
+    const isOptional = sel === mapDept;
+    sel.innerHTML = isOptional ? '<option value="">— 略過此欄 —</option>' : '<option value="">— 請選擇 —</option>';
+    headers.forEach((h) => {
+      const opt = document.createElement("option");
+      opt.value = h;
+      opt.textContent = h;
+      if (h === cur) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+  const guessMap = {
+    group_name:       ["分組", "group", "組別", "班級", "group_id", "group number", "組號"],
+    student_id:       ["帳號", "student_id", "學號", "id", "studentid", "account", "username"],
+    department_grade: ["科系", "department", "系級", "系所", "major", "grade", "department_grade", "major/grade"],
+    student_name:     ["name", "姓名", "student_name", "full name", "fullname"],
+    last_name:        ["姓氏", "last", "姓", "lastname", "last_name", "surname", "family name"],
+    first_name:       ["名字", "first", "名", "firstname", "first_name", "given name", "givenname"],
+  };
+  const lowerH = headers.map((h) => h.toLowerCase());
+  function tryGuess(sel, cands) {
+    for (const c of cands) {
+      const i = lowerH.indexOf(c.toLowerCase());
+      if (i !== -1) { sel.value = headers[i]; return; }
+    }
+  }
+  tryGuess(mapGroup,     guessMap.group_name);
+  tryGuess(mapStudentId, guessMap.student_id);
+  tryGuess(mapDept,      guessMap.department_grade);
+  tryGuess(mapName,      guessMap.student_name);
+  tryGuess(mapLastName,  guessMap.last_name);
+  tryGuess(mapFirstName, guessMap.first_name);
+  if (!mapName.value && mapLastName.value && mapFirstName.value) {
+    document.querySelector('input[name="name-mode"][value="split"]').checked = true;
+    nameSingleRow.hidden = true;
+    nameSplitRow.hidden = false;
+  }
+}
+
+// ── 排除面板 ──
+
+function guessGroupAndIdCols(headers) {
+  const lower = headers.map((h) => h.toLowerCase());
+  const groupC = ["分組", "group", "組別", "班級", "group_id", "group number", "組號"];
+  const idC    = ["帳號", "student_id", "學號", "id", "studentid", "account", "username"];
+  let grp = "", sid = "";
+  for (const c of groupC) { const i = lower.indexOf(c.toLowerCase()); if (i !== -1) { grp = headers[i]; break; } }
+  for (const c of idC)    { const i = lower.indexOf(c.toLowerCase()); if (i !== -1) { sid = headers[i]; break; } }
+  return { grp, sid };
+}
+
+function getRowKey(row) {
+  return csvIdCol ? (row[csvIdCol] || "").trim() : JSON.stringify(row);
+}
+
+function getRowGroup(row) {
+  return csvGroupCol ? (row[csvGroupCol] || "").replace(/^"|"$/g, "").trim() : "";
+}
+
+function buildExcludePanel(headers, rows) {
+  csvRawHeaders = headers;
+  csvRawRows    = rows;
+  excludedIds.clear();
+  excludedGroups.clear();
+  excludedGroupsChips.innerHTML = "";
+  const { grp, sid } = guessGroupAndIdCols(headers);
+  csvGroupCol = grp || headers[0] || "";
+  csvIdCol    = sid || headers[1] || "";
+  const groups = csvGroupCol
+    ? [...new Set(rows.map((r) => getRowGroup(r)).filter(Boolean))].sort()
+    : [];
+  [excludeGroupSelect, excludeFilterSelect].forEach((sel, i) => {
+    sel.innerHTML = i === 0 ? '<option value="">— 選擇要排除的組別 —</option>' : '<option value="">全部</option>';
+    groups.forEach((g) => {
+      const opt = document.createElement("option");
+      opt.value = g; opt.textContent = g;
+      sel.appendChild(opt);
+    });
+  });
+  buildExcludeTableHeader(headers);
+  renderExcludeTableRaw(rows, "");
+  updateExcludeCountBadge();
+  excludePanel.hidden = false;
+}
+
+function buildExcludeTableHeader(headers) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<th class="col-check"><input type="checkbox" id="exclude-check-all" title="全選／全消" /></th>`;
+  headers.forEach((h) => { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); });
+  excludeTableHead.innerHTML = "";
+  excludeTableHead.appendChild(tr);
+  document.getElementById("exclude-check-all").addEventListener("change", onCheckAll);
+}
+
+function renderExcludeTableRaw(rows, filterGroup, page = 1) {
+  excludeFilteredRows = filterGroup ? rows.filter((r) => getRowGroup(r) === filterGroup) : rows;
+  const total = excludeFilteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  excludeCurrentPage = Math.min(Math.max(1, page), totalPages);
+  const start = (excludeCurrentPage - 1) * PAGE_SIZE;
+  const slice = excludeFilteredRows.slice(start, start + PAGE_SIZE);
+
+  excludeTableBody.innerHTML = "";
+  slice.forEach((row) => {
+    const key = getRowKey(row);
+    const tr = document.createElement("tr");
+    if (excludedIds.has(key)) tr.classList.add("excluded-row");
+    let cells = `<td class="col-check"><input type="checkbox" class="exclude-cb" data-id="${escapeHtml(key)}" ${excludedIds.has(key) ? "checked" : ""} /></td>`;
+    csvRawHeaders.forEach((h) => { cells += `<td>${escapeHtml((row[h] || "").replace(/^"|"$/g, ""))}</td>`; });
+    tr.innerHTML = cells;
+    excludeTableBody.appendChild(tr);
+  });
+
+  // 更新分頁控制
+  excludePrevBtn.disabled = excludeCurrentPage === 1;
+  excludeNextBtn.disabled = excludeCurrentPage === totalPages;
+  excludePageBtns.innerHTML = "";
+  for (let p = 1; p <= totalPages; p++) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "page-num-btn" + (p === excludeCurrentPage ? " active" : "");
+    btn.textContent = String(p);
+    btn.addEventListener("click", () => renderExcludeTableRaw(rows, filterGroup, p));
+    excludePageBtns.appendChild(btn);
+  }
+
+  syncCheckAll();
+}
+
+function syncCheckAll() {
+  const el = document.getElementById("exclude-check-all");
+  if (!el) return;
+  const cbs = [...excludeTableBody.querySelectorAll(".exclude-cb")];
+  el.checked = cbs.length > 0 && cbs.every((cb) => cb.checked);
+  el.indeterminate = !el.checked && cbs.some((cb) => cb.checked);
+}
+
+function updateExcludeCountBadge() {
+  const n = excludedIds.size;
+  if (n === 0) { excludeCountBadge.hidden = true; return; }
+  excludeCountBadge.hidden = false;
+  excludeCountBadge.textContent = `已排除 ${n} 人`;
+  excludeCountBadge.className = "count-badge warning";
+}
+
+function addExcludedGroup(groupName) {
+  if (!groupName || excludedGroups.has(groupName)) return;
+  excludedGroups.add(groupName);
+  csvRawRows.filter((r) => getRowGroup(r) === groupName).forEach((r) => excludedIds.add(getRowKey(r)));
+  const chip = document.createElement("span");
+  chip.className = "excluded-chip";
+  chip.dataset.group = groupName;
+  chip.innerHTML = `${escapeHtml(groupName)} <button type="button" class="chip-remove" data-group="${escapeHtml(groupName)}">✕</button>`;
+  excludedGroupsChips.appendChild(chip);
+  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage);
+  updateExcludeCountBadge();
+}
+
+function removeExcludedGroup(groupName) {
+  excludedGroups.delete(groupName);
+  csvRawRows.filter((r) => getRowGroup(r) === groupName).forEach((r) => excludedIds.delete(getRowKey(r)));
+  const chip = excludedGroupsChips.querySelector(`span[data-group="${CSS.escape(groupName)}"]`);
+  if (chip) chip.remove();
+  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage);
+  updateExcludeCountBadge();
+}
+
+function onCheckAll(e) {
+  const checked = e.target.checked;
+  excludeTableBody.querySelectorAll(".exclude-cb").forEach((cb) => {
+    cb.checked = checked;
+    if (checked) excludedIds.add(cb.dataset.id);
+    else         excludedIds.delete(cb.dataset.id);
+    cb.closest("tr").classList.toggle("excluded-row", checked);
+  });
+  updateExcludeCountBadge();
+}
+
+excludeGroupBtn.addEventListener("click", () => {
+  const g = excludeGroupSelect.value;
+  if (!g) { showToast("請先選擇要排除的組別", "warning"); return; }
+  addExcludedGroup(g);
+  excludeGroupSelect.value = "";
+});
+
+excludedGroupsChips.addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip-remove");
+  if (!btn) return;
+  removeExcludedGroup(btn.dataset.group);
+});
+
+excludeFilterSelect.addEventListener("change", () => {
+  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, 1);
+});
+
+excludePrevBtn.addEventListener("click", () =>
+  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage - 1),
+);
+excludeNextBtn.addEventListener("click", () =>
+  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage + 1),
+);
+
+excludeTableBody.addEventListener("change", (e) => {
+  const cb = e.target.closest(".exclude-cb");
+  if (!cb) return;
+  const key = cb.dataset.id;
+  if (cb.checked) {
+    excludedIds.add(key);
+    cb.closest("tr").classList.add("excluded-row");
+  } else {
+    excludedIds.delete(key);
+    cb.closest("tr").classList.remove("excluded-row");
+    const row = csvRawRows.find((r) => getRowKey(r) === key);
+    if (row) {
+      const grp = getRowGroup(row);
+      if (grp && excludedGroups.has(grp)) {
+        excludedGroups.delete(grp);
+        const chip = excludedGroupsChips.querySelector(`span[data-group="${CSS.escape(grp)}"]`);
+        if (chip) chip.remove();
+      }
+    }
+  }
+  syncCheckAll();
+  updateExcludeCountBadge();
+});
+
+// 套用並預覽名單（可重複執行）
+excludeApplyBtn.addEventListener("click", () => {
+  if (!currentMapping) { showToast("請先套用欄位對應", "warning"); return; }
+  parseRoster(currentMapping, excludedIds)
+    .then(() => showToast(`名單已更新，共 ${rosterAllStudents.length} 人`, "success"))
+    .catch((err) => showToast(err.message, "error"));
+});
+
+// ── CSV 上傳流程 ──
+
+async function loadCsvPreview(text) {
+  const res = await fetch("/api/csv-preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roster_text: text }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "無法讀取 CSV");
+  return data;
+}
+
+async function handleCsvUpload(text, filename) {
+  rosterText.value = text;
+  uploadedFilename = filename;
+  markRosterDirty();
+  uploadedFilename = filename; // restore after markRosterDirty clears it
+  const { headers, rows } = await loadCsvPreview(text);
+  csvRawHeaders = headers;
+  csvRawRows = rows;
+  populateMappingSelects(headers);
+  columnMappingWrap.hidden = false;
+  mappingGroupHint.hidden = false;
+  showToast(`已讀取 ${filename}（${rows.length} 筆），請設定欄位對應`, "info");
+}
+
+// ── 欄位對應 name-mode 切換 ──
+document.querySelectorAll('input[name="name-mode"]').forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const isSplit = getNameMode() === "split";
+    nameSingleRow.hidden = isSplit;
+    nameSplitRow.hidden = !isSplit;
+  });
+});
+
+// 套用對應 → 顯示排除面板
+applyMappingBtn.addEventListener("click", () => {
+  const isSplit = getNameMode() === "split";
+  const mapping = buildColumnMapping();
+  const missing = [];
+  if (!mapping.group_name) missing.push("組別");
+  if (!mapping.student_id) missing.push("學號");
+  if (isSplit) {
+    if (!mapping.last_name)  missing.push("姓");
+    if (!mapping.first_name) missing.push("名");
+  } else {
+    if (!mapping.student_name) missing.push("姓名");
+  }
+  if (missing.length > 0) { showToast(`請選擇以下欄位：${missing.join("、")}`, "warning"); return; }
+  currentMapping = mapping;
+  buildExcludePanel(csvRawHeaders, csvRawRows);
+  // Initial parse (no exclusions yet)
+  parseRoster(mapping, new Set())
+    .then(() => showToast("欄位對應套用完成，請確認名單後可設定排除", "success"))
+    .catch((err) => showToast(err.message, "error"));
+});
 
 function cellKey(r, c) {
   return `${r},${c}`;
@@ -316,7 +779,12 @@ function normalizeBounds(a, b) {
 
 function inRoom(r, c) {
   if (!roomBounds) return false;
-  return r >= roomBounds.r0 && r <= roomBounds.r1 && c >= roomBounds.c0 && c <= roomBounds.c1;
+  return (
+    r >= roomBounds.r0 &&
+    r <= roomBounds.r1 &&
+    c >= roomBounds.c0 &&
+    c <= roomBounds.c1
+  );
 }
 
 function toRoomCoord(r, c) {
@@ -442,7 +910,13 @@ function paintEditor() {
     td.textContent = "";
     td.title = "";
 
-    if (previewBounds && r >= previewBounds.r0 && r <= previewBounds.r1 && c >= previewBounds.c0 && c <= previewBounds.c1) {
+    if (
+      previewBounds &&
+      r >= previewBounds.r0 &&
+      r <= previewBounds.r1 &&
+      c >= previewBounds.c0 &&
+      c <= previewBounds.c1
+    ) {
       if (getEditorMode() === "room" && !roomBounds) {
         td.className = "selecting";
       } else if (getEditorMode() === "block" && inRoom(r, c)) {
@@ -531,18 +1005,23 @@ function onMouseUp() {
     roomBounds = bounds;
   } else if (getEditorMode() === "block") {
     if (eraseBlockMode) {
-      iterCellsInBounds(bounds).forEach(({ r, c }) => blocked.delete(cellKey(r, c)));
+      iterCellsInBounds(bounds).forEach(({ r, c }) =>
+        blocked.delete(cellKey(r, c)),
+      );
       // 清除模式維持開啟，使用者要再按一次按鈕才結束
     } else {
       const reason = resolveBlockReason();
       if (!reason) {
         showToast("請先選擇不可用原因（黑板／門／不坐人）", "warning");
       } else {
-        // 黑板僅標記框選格本身，整排不再自動補齊；
-        // 排位時後端會自動跳過該橫排，且座位表的排數編號也會跳過。
-        iterCellsInBounds(bounds).forEach(({ r, c }) => {
-          blocked.set(cellKey(r, c), reason);
-        });
+        const cells = iterCellsInBounds(bounds);
+        // 若框選範圍內所有格子都已是同一原因 → 取消（toggle off）
+        const allSame = cells.every(({ r, c }) => blocked.get(cellKey(r, c)) === reason);
+        if (allSame) {
+          cells.forEach(({ r, c }) => blocked.delete(cellKey(r, c)));
+        } else {
+          cells.forEach(({ r, c }) => blocked.set(cellKey(r, c), reason));
+        }
       }
     }
   }
@@ -592,9 +1071,14 @@ function splitName(fullName) {
     return { chineseName: spaceMatch[1], englishName: spaceMatch[2].trim() };
   }
   // Case 3: English + space + Chinese, e.g. "David Chen 陳大文"
-  const enFirstMatch = fullName.match(/^([A-Za-z][A-Za-z\s]+)\s+([一-鿿]{2,4})$/);
+  const enFirstMatch = fullName.match(
+    /^([A-Za-z][A-Za-z\s]+)\s+([一-鿿]{2,4})$/,
+  );
   if (enFirstMatch) {
-    return { chineseName: enFirstMatch[2], englishName: enFirstMatch[1].trim() };
+    return {
+      chineseName: enFirstMatch[2],
+      englishName: enFirstMatch[1].trim(),
+    };
   }
   return { chineseName: fullName, englishName: "" };
 }
@@ -705,14 +1189,20 @@ function computeBlockMerges(byXY, showCols, showRows) {
 
       // 找橫向最大延伸
       let cx = x + 1;
-      while (cx <= showCols && isBlocked(cx, y) === note && !skip.has(`${cx}-${y}`)) cx += 1;
+      while (
+        cx <= showCols &&
+        isBlocked(cx, y) === note &&
+        !skip.has(`${cx}-${y}`)
+      )
+        cx += 1;
       const colspan = cx - x;
 
       // 嘗試縱向擴展：每一列都必須完整匹配相同的 colspan 寬度
       let cy = y + 1;
       outer: while (cy <= showRows) {
         for (let dx = 0; dx < colspan; dx += 1) {
-          if (isBlocked(x + dx, cy) !== note || skip.has(`${x + dx}-${cy}`)) break outer;
+          if (isBlocked(x + dx, cy) !== note || skip.has(`${x + dx}-${cy}`))
+            break outer;
         }
         cy += 1;
       }
@@ -766,7 +1256,12 @@ function renderSeatMap(payload) {
     table.className = "seatmap-table";
 
     const headTr = document.createElement("tr");
-    headTr.appendChild(Object.assign(document.createElement("th"), { className: "axis", textContent: "" }));
+    headTr.appendChild(
+      Object.assign(document.createElement("th"), {
+        className: "axis",
+        textContent: "",
+      }),
+    );
     cols.forEach((x) => {
       const th = document.createElement("th");
       th.className = "axis";
@@ -793,7 +1288,8 @@ function renderSeatMap(payload) {
           if (mergeInfo.rowspan > 1) td.rowSpan = mergeInfo.rowspan;
           const note = mergeInfo.note;
           td.className = blockClassForNote(note) + " merged-block";
-          td.textContent = blockLabelForNote(note) || (isBlankNote(note) ? "✕" : note);
+          td.textContent =
+            blockLabelForNote(note) || (isBlankNote(note) ? "✕" : note);
           td.title = isBlankNote(note) ? "不坐人" : note || "不可用";
         } else {
           fillSeatCell(td, byXY.get(`${x}-${y}`));
@@ -806,15 +1302,47 @@ function renderSeatMap(payload) {
   });
 }
 
-function renderShufflePreview(shuffled) {
+let shuffleAllStudents  = [];
+let shuffleCurrentPage  = 1;
+
+function renderShufflePage(page) {
+  const total      = shuffleAllStudents.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  shuffleCurrentPage = Math.min(Math.max(1, page), totalPages);
+  const start = (shuffleCurrentPage - 1) * PAGE_SIZE;
+  const slice = shuffleAllStudents.slice(start, start + PAGE_SIZE);
+
   shuffleList.innerHTML = "";
-  shuffled.slice(0, 20).forEach((s) => {
-    const li = document.createElement("li");
-    const dept = s.department_grade && s.department_grade !== "-" ? `，${s.department_grade}` : "";
-    li.textContent = `${s.student_id} ${s.student_name}（組別${s.group_name}${dept}）`;
-    shuffleList.appendChild(li);
+  slice.forEach((s, i) => {
+    const tr   = document.createElement("tr");
+    const dept = s.department_grade && s.department_grade !== "-" ? s.department_grade : "";
+    tr.innerHTML = `<td class="row-num">${start + i + 1}</td><td>${escapeHtml(s.group_name)}</td><td>${escapeHtml(s.student_id)}</td><td>${escapeHtml(dept)}</td><td>${escapeHtml(s.student_name)}</td>`;
+    shuffleList.appendChild(tr);
   });
+
+  shufflePrevBtn.disabled = shuffleCurrentPage === 1;
+  shuffleNextBtn.disabled = shuffleCurrentPage === totalPages;
+
+  shufflePageBtns.innerHTML = "";
+  for (let p = 1; p <= totalPages; p++) {
+    const btn = document.createElement("button");
+    btn.type      = "button";
+    btn.className = "page-num-btn" + (p === shuffleCurrentPage ? " active" : "");
+    btn.textContent = String(p);
+    btn.addEventListener("click", () => renderShufflePage(p));
+    shufflePageBtns.appendChild(btn);
+  }
+
+  const wrap = document.getElementById("shuffle-table-wrap");
+  if (wrap) wrap.scrollTop = 0;
+}
+
+function renderShufflePreview(shuffled) {
+  shuffleAllStudents = shuffled;
+  shuffleCurrentPage = 1;
+  shuffleCountBadge.textContent = `共 ${shuffled.length} 人`;
   shufflePanel.hidden = false;
+  renderShufflePage(1);
 }
 
 async function previewShuffle() {
@@ -827,7 +1355,6 @@ async function previewShuffle() {
   if (!res.ok) throw new Error(data.error || "預覽失敗");
   renderShufflePreview(data.shuffled_students);
 }
-
 
 async function runAssignment() {
   runBtn.disabled = true;
@@ -880,10 +1407,20 @@ clearRoomBtn.addEventListener("click", clearRoom);
 previewShuffleBtn.addEventListener("click", () => {
   previewShuffle().catch((err) => showToast(err.message, "error"));
 });
-mockPrevBtn.addEventListener("click", () => renderMockPage(mockCurrentPage - 1));
-mockNextBtn.addEventListener("click", () => renderMockPage(mockCurrentPage + 1));
-rosterPrevBtn.addEventListener("click", () => renderRosterPage(rosterCurrentPage - 1));
-rosterNextBtn.addEventListener("click", () => renderRosterPage(rosterCurrentPage + 1));
+shufflePrevBtn.addEventListener("click", () => renderShufflePage(shuffleCurrentPage - 1));
+shuffleNextBtn.addEventListener("click", () => renderShufflePage(shuffleCurrentPage + 1));
+mockPrevBtn.addEventListener("click", () =>
+  renderMockPage(mockCurrentPage - 1),
+);
+mockNextBtn.addEventListener("click", () =>
+  renderMockPage(mockCurrentPage + 1),
+);
+rosterPrevBtn.addEventListener("click", () =>
+  renderRosterPage(rosterCurrentPage - 1),
+);
+rosterNextBtn.addEventListener("click", () =>
+  renderRosterPage(rosterCurrentPage + 1),
+);
 
 previewTemplateBtn.addEventListener("click", () => {
   const hidden = templatePreviewWrap.hidden;
@@ -895,11 +1432,9 @@ rosterFile.addEventListener("change", (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    rosterText.value = reader.result;
-    markRosterDirty();
-    parseRoster()
-      .then(() => showToast(`已解析 ${file.name}，名單載入成功`, "success"))
-      .catch((err) => showToast(err.message, "error"));
+    handleCsvUpload(reader.result, file.name).catch((err) =>
+      showToast(err.message, "error"),
+    );
   };
   reader.readAsText(file, "UTF-8");
   e.target.value = "";
@@ -917,10 +1452,16 @@ document.querySelectorAll('input[name="roster-source"]').forEach((el) => {
 colReverseBtn.addEventListener("click", () => {
   colReverse = !colReverse;
   updateColReverseHint();
-  paintEditor();   // ← 編輯器排數標號即時跟著翻轉
+  paintEditor(); // ← 編輯器排數標號即時跟著翻轉
   if (lastExamId) updateExportLinks(lastExamId);
   if (lastSeatmapPayload) renderSeatMap(lastSeatmapPayload);
 });
+
+if (rosterSortSelect) {
+  rosterSortSelect.addEventListener("change", () => {
+    if (rosterAllStudents.length > 0) applySortAndRender();
+  });
+}
 
 buildEditorGrid();
 updateEditorModeUI();

@@ -169,7 +169,6 @@ body {
   flex: 1;
   min-width: 0;
   padding: 36px 40px;
-  max-width: 960px;
 }
 
 /* ── Step pages (single-step wizard) ── */
@@ -413,13 +412,18 @@ body {
 
 /* ── Editor layout ── */
 .editor-layout {
+  position: relative;
   display: flex;
-  gap: 16px;
   align-items: flex-start;
+  justify-content: center;
+  min-height: 200px;
 }
 
 .block-palette {
-  flex: 0 0 148px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 148px;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -474,22 +478,23 @@ body {
 .hint-sm.success { color: var(--success); }
 
 .editor-wrap {
-  flex: 1;
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px;
   background: var(--bg);
+  display: inline-block;
 }
 
 /* ── Editor grid ── */
 .editor-grid td {
-  width: 28px;
-  height: 28px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
   border: 1px solid var(--border);
   text-align: center;
   vertical-align: middle;
-  font-size: 8px;
+  font-size: 10px;
   cursor: crosshair;
   user-select: none;
   padding: 0;
@@ -1064,4 +1069,337 @@ table {
   letter-spacing: .5px;
   vertical-align: middle;
   text-align: center;
+}
+
+/* ── 欄位對應 UI ── */
+.mapping-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+.mapping-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.mapping-hint {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.mapping-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.mapping-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mapping-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.mapping-label.required-dot::after {
+  content: " *";
+  color: var(--danger);
+}
+.mapping-select {
+  padding: 7px 10px;
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color .15s;
+}
+.mapping-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+}
+#column-mapping-wrap {
+  background: var(--amber-lt);
+  border: 1px solid #FDE68A;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+/* ── 欄位對應：姓名模式切換 ── */
+.mapping-row-name {
+  grid-column: 1 / -1;
+}
+.mapping-name-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.mapping-name-toggle {
+  display: flex;
+  gap: 12px;
+}
+.mapping-name-opt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+.name-split-selects {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.name-split-selects > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.name-split-plus {
+  font-size: 18px;
+  color: var(--text-hint);
+  padding-bottom: 8px;
+}
+.mapping-sublabel {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+/* ── 組別格式提示 ── */
+.mapping-group-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--amber);
+  background: rgba(217,119,6,.08);
+  border: 1px solid rgba(217,119,6,.25);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  margin-bottom: 12px;
+}
+.hint-icon {
+  font-style: normal;
+  font-size: 13px;
+}
+
+/* ── 排除面板 ── */
+#exclude-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 16px;
+}
+.exclude-panel-header { margin-bottom: 14px; }
+.exclude-panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.exclude-panel-title { font-weight: 600; font-size: 14px; }
+.exclude-panel-hint  { font-size: 12px; color: var(--text-sub); margin: 0; }
+
+.exclude-section { margin-bottom: 14px; }
+.exclude-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin: 0 0 8px;
+}
+
+.exclude-group-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.exclude-group-select { flex: 1; }
+
+.btn-danger-outline {
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.btn-danger-outline:hover { background: var(--danger-lt); }
+
+.excluded-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.excluded-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--danger-lt);
+  color: var(--danger);
+  border: 1px solid rgba(220,38,38,.25);
+  border-radius: 20px;
+  padding: 3px 10px 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--danger);
+  padding: 0 2px;
+  opacity: .7;
+}
+.chip-remove:hover { opacity: 1; }
+
+.exclude-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0;
+}
+
+.exclude-individual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.exclude-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.exclude-filter-select { width: 140px; }
+
+.exclude-table-wrap {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.exclude-table { width: 100%; }
+.exclude-table .col-check { width: 36px; text-align: center; }
+.excluded-row { background: var(--danger-lt) !important; }
+.count-badge.warning {
+  background: var(--amber-lt);
+  color: var(--amber);
+  border: 1px solid rgba(217,119,6,.25);
+}
+
+/* ── 排除面板確認列 ── */
+.exclude-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.exclude-confirm-hint {
+  font-size: 12px;
+  color: var(--text-hint);
+}
+
+/* ── 系級選填標籤 ── */
+.optional-tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-hint);
+  background: var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+}
+
+/* ── 名單預覽排序下拉 ── */
+.roster-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.roster-sort-label {
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+.roster-sort-select {
+  width: 110px;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+/* ── 步驟 3 名單摘要卡片 ── */
+.roster-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.roster-summary-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--primary-lt);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.roster-summary-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.roster-summary-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.roster-summary-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.roster-summary-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--primary-lt);
+  color: var(--primary);
+  white-space: nowrap;
+}
+.roster-summary-badge.success {
+  background: var(--success-lt);
+  color: var(--success);
+}
+.roster-summary-badge.warning {
+  background: var(--amber-lt);
+  color: var(--amber);
 }

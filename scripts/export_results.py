@@ -101,7 +101,7 @@ def _excel_cell_html(seat: dict) -> str:
         note = seat.get("block_note") or ""
         label = block_note_label(note)
         style = block_inline_style(note)
-        return f'<td style="{_CELL_BASE}{style}">{_esc(label)}</td>'
+        return f'<td style="{_CELL_BASE}{style};font-size:16pt;">{_esc(label)}</td>'
     if not has_valid_student(seat):
         return f'<td style="{_CELL_BASE}background:#f9fafb;"></td>'
     sid = _esc(seat["student_id"].strip())
@@ -184,13 +184,13 @@ def build_colored_excel_html(
     label_style = (
         f"width:{_CELL_W};height:{_CELL_H};background:#f3f4f6;"
         "text-align:center;vertical-align:middle;"
-        "font-weight:700;font-size:10pt;padding:2px;"
+        "font-weight:700;font-size:16pt;padding:2px;"
     )
     corner_style = f"width:{_CELL_W};height:{_CELL_H};background:#f3f4f6;"
     col_label_style = (
         f"width:{_CELL_W};height:{_CELL_H};background:#f3f4f6;"
         "text-align:center;vertical-align:middle;"
-        "font-weight:700;font-size:10pt;padding:2px;"
+        "font-weight:700;font-size:16pt;padding:2px;"
     )
 
     rows_html = []
@@ -217,12 +217,12 @@ def build_colored_excel_html(
                 if is_blank_block(note):
                     row += (
                         f'<td{cs_attr}{rs_attr} style="{center}background:#fee2e2;'
-                        f'color:#dc2626;font-weight:700;font-size:14px">✕</td>'
+                        f'color:#dc2626;font-weight:700;font-size:16pt">✕</td>'
                     )
                 else:
                     label = block_note_label(note)
                     style = block_inline_style(note)
-                    row += f'<td{cs_attr}{rs_attr} style="{center}{style}">{label}</td>'
+                    row += f'<td{cs_attr}{rs_attr} style="{center}{style};font-size:16pt;font-weight:700">{label}</td>'
             else:
                 row += _excel_cell_html(matrix[(x, y)])
         rows_html.append(row + "</tr>")

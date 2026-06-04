@@ -1,3 +1,22 @@
+// ── Modal ──
+function showModal(message, type = "info", title = null) {
+  const overlay = document.getElementById("app-modal");
+  const dialog  = overlay.querySelector(".modal-dialog");
+  const titleEl = document.getElementById("modal-title");
+  const bodyEl  = document.getElementById("modal-body");
+  const titles  = { success: "成功", warning: "注意", error: "錯誤", info: "提示" };
+  titleEl.textContent = title || titles[type] || titles.info;
+  bodyEl.textContent  = message;
+  dialog.className = `modal-dialog modal-${type}`;
+  overlay.hidden = false;
+}
+function closeModal() {
+  document.getElementById("app-modal").hidden = true;
+}
+document.getElementById("app-modal").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
 // ── Toast 通知 ──
 function showToast(message, type = "error") {
   const container = document.getElementById("toast-container");
@@ -981,7 +1000,7 @@ function paintEditor() {
 
 function onCellMouseDown(e) {
   if (getEditorMode() === "block" && !roomBounds) {
-    alert("請先框選教室範圍");
+    showModal("請先框選教室範圍，再標記不可用座位。", "warning", "尚未設定教室範圍");
     return;
   }
   const td = e.currentTarget;
@@ -1375,9 +1394,10 @@ async function runAssignment() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "排位失敗");
 
-    resultText.textContent =
-      `已安排 ${data.assigned_count} 人，未安排 ${data.unassigned_count} 人` +
-      `（共 ${data.student_count} 人，可用座位 ${data.usable_seats} 格）`;
+    const summaryMsg =
+      `已安排 ${data.assigned_count} 人，未安排 ${data.unassigned_count} 人\n` +
+      `共 ${data.student_count} 位學生，可用座位 ${data.usable_seats} 格`;
+    resultText.textContent = summaryMsg;
 
     lastExamId = data.exam_id;
     updateExportLinks(data.exam_id);
@@ -1388,10 +1408,10 @@ async function runAssignment() {
     if (!mapRes.ok) throw new Error(mapData.error || "讀取座位圖失敗");
     renderSeatMap(mapData);
 
-    showToast(`排位完成！已安排 ${data.assigned_count} 人`, "success");
     window._goToResultStep && window._goToResultStep();
+    showModal(summaryMsg, data.unassigned_count > 0 ? "warning" : "success", "排位完成");
   } catch (err) {
-    showToast(err.message, "error");
+    showModal(err.message, "error", "排位失敗");
   } finally {
     runBtn.disabled = false;
     runBtn.textContent = "一鍵排位";

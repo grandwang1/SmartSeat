@@ -161,10 +161,12 @@ def parse_roster_with_mapping(
         }
         if not any(record.values()):
             continue
-        for key, label in [("group_name", "組別"), ("student_id", "學號"), ("student_name", "姓名")]:
+        for key, label in [("student_id", "學號"), ("student_name", "姓名")]:
             if not record[key]:
                 raise ValueError(f"第 {i} 列「{label}」欄位為空")
-        record["group_name"] = normalize_group_value(record["group_name"])
+        # 組別允許為空（例如旁聽生、助教未填組別），排除面板中會以「無組別」顯示
+        raw_group = record["group_name"]
+        record["group_name"] = normalize_group_value(raw_group) if raw_group else ""
         students.append(record)
 
     # Exclude before group-label normalisation so excluded groups don't

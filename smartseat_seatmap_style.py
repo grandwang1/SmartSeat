@@ -352,6 +352,8 @@ def normalize_group_labels_to_int(students: list[dict]) -> list[dict]:
     next_int: list[int] = [1]
 
     def _assign(label: str) -> str:
+        if label == "":        # 空組別保持空字串，不分配整數
+            return ""
         if label in label_map:
             return label_map[label]
         if re.fullmatch(r"\d+", label):

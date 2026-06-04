@@ -131,6 +131,19 @@
               <div id="editor-wrap" class="editor-wrap"></div>
             </div>
           </div>
+
+          <!-- 底部導覽 -->
+          <div class="page-nav-bar-bottom">
+            <button class="btn btn-ghost step-nav-btn" disabled onclick="goToStep(0)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              上一步
+            </button>
+            <div class="page-nav-spacer"></div>
+            <button class="btn btn-primary step-nav-btn" onclick="goToStep(2)">
+              下一步
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </button>
+          </div>
         </section>
 
         <!-- 步驟 2：學生名單 -->
@@ -312,9 +325,10 @@
                     <p class="exclude-section-title">個別排除</p>
                     <div class="exclude-filter-row">
                       <span class="exclude-filter-label">篩選：</span>
-                      <select id="exclude-filter-select" class="mapping-select exclude-filter-select">
-                        <option value="">全部</option>
-                      </select>
+                      <div class="multiselect-wrap" id="exclude-filter-multiselect">
+                        <button type="button" class="multiselect-trigger" id="exclude-filter-ms-trigger">全部 ▾</button>
+                        <div class="multiselect-dropdown" id="exclude-filter-ms-dropdown" hidden></div>
+                      </div>
                     </div>
                   </div>
                   <div class="exclude-table-wrap" id="exclude-table-wrap">
@@ -428,6 +442,18 @@
 
           </div>
 
+          <!-- 底部導覽 -->
+          <div class="page-nav-bar-bottom">
+            <button class="btn btn-ghost step-nav-btn" onclick="goToStep(1)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              上一步
+            </button>
+            <div class="page-nav-spacer"></div>
+            <button class="btn btn-primary step-nav-btn" onclick="goToStep(3)">
+              下一步
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </button>
+          </div>
         </section>
 
         <!-- 步驟 3：排位 -->
@@ -511,6 +537,18 @@
             </div>
           </div>
 
+          <!-- 底部導覽 -->
+          <div class="page-nav-bar-bottom">
+            <button class="btn btn-ghost step-nav-btn" onclick="goToStep(2)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              上一步
+            </button>
+            <div class="page-nav-spacer"></div>
+            <button class="btn btn-ghost step-nav-btn" disabled>
+              下一步
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </button>
+          </div>
         </section>
 
         <!-- 步驟 4：排位結果 -->
@@ -558,6 +596,94 @@
             <div id="seatmap-wrap" class="seatmap-scroll"></div>
           </div>
 
+          <!-- 已安排 / 未安排名單（有未安排時才顯示） -->
+          <div class="panel" id="assignment-roster-panel" hidden>
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-badge secondary">
+                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a1 1 0 110 2 1 1 0 010-2zm0 3.5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 7.5z" fill="currentColor"/></svg>
+                </span>
+                <h2>排位名單明細</h2>
+              </div>
+            </div>
+
+            <!-- 未安排 -->
+            <div id="unassigned-section" hidden>
+              <div class="mock-preview-header">
+                <div class="roster-section-title unassigned-title">
+                  <span class="roster-section-dot unassigned-dot"></span>
+                  未安排座位
+                  <span id="unassigned-section-count" class="count-badge" style="margin-left:6px"></span>
+                </div>
+                <div class="roster-sort-row">
+                  <label class="roster-sort-label">篩選組別：</label>
+                  <div class="multiselect-wrap" id="unassigned-multiselect">
+                    <button type="button" class="multiselect-trigger" id="unassigned-ms-trigger">全部 ▾</button>
+                    <div class="multiselect-dropdown" id="unassigned-ms-dropdown" hidden></div>
+                  </div>
+                </div>
+              </div>
+              <div class="table-wrap" id="unassigned-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>#</th><th>組別</th><th>學號</th><th>姓名</th></tr></thead>
+                  <tbody id="unassigned-list-body"></tbody>
+                </table>
+              </div>
+              <div class="pagination-bar">
+                <button type="button" class="btn btn-ghost btn-sm" id="unassigned-prev-btn" disabled>
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>上一頁
+                </button>
+                <div class="pagination-pages" id="unassigned-page-btns"></div>
+                <button type="button" class="btn btn-ghost btn-sm" id="unassigned-next-btn">
+                  下一頁<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="exclude-divider" id="roster-detail-divider" hidden></div>
+
+            <!-- 已安排 -->
+            <div id="assigned-section" hidden>
+              <div class="mock-preview-header">
+                <div class="roster-section-title assigned-title">
+                  <span class="roster-section-dot assigned-dot-sm"></span>
+                  已安排座位
+                  <span id="assigned-section-count" class="count-badge" style="margin-left:6px"></span>
+                </div>
+                <div class="roster-sort-row">
+                  <label class="roster-sort-label">篩選組別：</label>
+                  <div class="multiselect-wrap" id="assigned-multiselect">
+                    <button type="button" class="multiselect-trigger" id="assigned-ms-trigger">全部 ▾</button>
+                    <div class="multiselect-dropdown" id="assigned-ms-dropdown" hidden></div>
+                  </div>
+                </div>
+              </div>
+              <div class="table-wrap" id="assigned-table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>#</th><th>組別</th><th>學號</th><th>姓名</th></tr></thead>
+                  <tbody id="assigned-list-body"></tbody>
+                </table>
+              </div>
+              <div class="pagination-bar">
+                <button type="button" class="btn btn-ghost btn-sm" id="assigned-prev-btn" disabled>
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>上一頁
+                </button>
+                <div class="pagination-pages" id="assigned-page-btns"></div>
+                <button type="button" class="btn btn-ghost btn-sm" id="assigned-next-btn">
+                  下一頁<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部導覽 -->
+          <div class="page-nav-bar-bottom">
+            <button class="btn btn-ghost step-nav-btn" onclick="goToStep(3)">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              上一步
+            </button>
+            <div class="page-nav-spacer"></div>
+          </div>
         </section>
 
       </main>

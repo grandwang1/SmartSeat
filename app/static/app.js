@@ -104,7 +104,7 @@ const excludePanel        = document.getElementById("exclude-panel");
 const excludeGroupSelect  = document.getElementById("exclude-group-select");
 const excludeGroupBtn     = document.getElementById("exclude-group-btn");
 const excludedGroupsChips = document.getElementById("excluded-groups-chips");
-const excludeFilterSelect = document.getElementById("exclude-filter-select");
+// exclude-filter-select 已改為多選 dropdown，不再用 select 元素
 const excludeTableHead    = document.getElementById("exclude-table-head");
 const excludeTableBody    = document.getElementById("exclude-table-body");
 const excludeCountBadge   = document.getElementById("exclude-count-badge");
@@ -562,31 +562,50 @@ function buildExcludePanel(headers, rows) {
   const groups = csvGroupCol
     ? [...new Set(rows.map((r) => getRowGroup(r)).filter(Boolean))].sort()
     : [];
-  [excludeGroupSelect, excludeFilterSelect].forEach((sel, i) => {
-    sel.innerHTML = i === 0 ? '<option value="">— 選擇要排除的組別 —</option>' : '<option value="">全部</option>';
-    groups.forEach((g) => {
-      const opt = document.createElement("option");
-      opt.value = g; opt.textContent = g;
-      sel.appendChild(opt);
-    });
+  const hasNoGroup = rows.some((r) => !getRowGroup(r));  // 有無組別的人
+
+  // 依組別排除下拉（單選，動作選單）
+  excludeGroupSelect.innerHTML = '<option value="">— 選擇要排除的組別 —</option>';
+  if (hasNoGroup) {
+    const opt = document.createElement("option");
+    opt.value = "__no_group__"; opt.textContent = "（無組別）";
+    excludeGroupSelect.appendChild(opt);
+  }
+  groups.forEach((g) => {
+    const opt = document.createElement("option");
+    opt.value = g; opt.textContent = g;
+    excludeGroupSelect.appendChild(opt);
+  });
+
+  // 個別排除篩選（多選 dropdown）—— 包含「（無組別）」
+  const filterGroups = hasNoGroup ? ["__no_group__", ...groups] : groups;
+  setupMultiselect(filterGroups, "exclude-filter-ms-trigger", "exclude-filter-ms-dropdown", (sel) => {
+    renderExcludeTableRaw(csvRawRows, sel, 1);
   });
   buildExcludeTableHeader(headers);
-  renderExcludeTableRaw(rows, "");
+  renderExcludeTableRaw(rows, new Set());
   updateExcludeCountBadge();
   excludePanel.hidden = false;
 }
 
 function buildExcludeTableHeader(headers) {
   const tr = document.createElement("tr");
-  tr.innerHTML = `<th class="col-check"><input type="checkbox" id="exclude-check-all" title="全選／全消" /></th>`;
+  tr.innerHTML = `<th class="col-check"><input type="checkbox" id="exclude-check-all" title="全選／全消" /></th><th class="row-num">#</th>`;
   headers.forEach((h) => { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); });
   excludeTableHead.innerHTML = "";
   excludeTableHead.appendChild(tr);
   document.getElementById("exclude-check-all").addEventListener("change", onCheckAll);
 }
 
-function renderExcludeTableRaw(rows, filterGroup, page = 1) {
-  excludeFilteredRows = filterGroup ? rows.filter((r) => getRowGroup(r) === filterGroup) : rows;
+function renderExcludeTableRaw(rows, filterGroups, page = 1) {
+  // filterGroups 可以是 Set（多選）或空字串（相容舊呼叫）
+  const sel = filterGroups instanceof Set ? filterGroups : new Set();
+  excludeFilteredRows = sel.size > 0
+    ? rows.filter((r) => {
+        const g = getRowGroup(r);
+        return sel.has(g) || (sel.has("__no_group__") && !g);
+      })
+    : rows;
   const total = excludeFilteredRows.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   excludeCurrentPage = Math.min(Math.max(1, page), totalPages);
@@ -594,11 +613,12 @@ function renderExcludeTableRaw(rows, filterGroup, page = 1) {
   const slice = excludeFilteredRows.slice(start, start + PAGE_SIZE);
 
   excludeTableBody.innerHTML = "";
-  slice.forEach((row) => {
+  slice.forEach((row, i) => {
     const key = getRowKey(row);
     const tr = document.createElement("tr");
     if (excludedIds.has(key)) tr.classList.add("excluded-row");
     let cells = `<td class="col-check"><input type="checkbox" class="exclude-cb" data-id="${escapeHtml(key)}" ${excludedIds.has(key) ? "checked" : ""} /></td>`;
+    cells += `<td class="row-num">${start + i + 1}</td>`;
     csvRawHeaders.forEach((h) => { cells += `<td>${escapeHtml((row[h] || "").replace(/^"|"$/g, ""))}</td>`; });
     tr.innerHTML = cells;
     excludeTableBody.appendChild(tr);
@@ -613,10 +633,48 @@ function renderExcludeTableRaw(rows, filterGroup, page = 1) {
     btn.type = "button";
     btn.className = "page-num-btn" + (p === excludeCurrentPage ? " active" : "");
     btn.textContent = String(p);
-    btn.addEventListener("click", () => renderExcludeTableRaw(rows, filterGroup, p));
+    btn.addEventListener("click", () => renderExcludePageOnly(p));
     excludePageBtns.appendChild(btn);
   }
 
+  const tableWrapRaw = document.getElementById("exclude-table-wrap");
+  if (tableWrapRaw) tableWrapRaw.scrollTop = 0;
+  syncCheckAll();
+}
+
+function renderExcludePageOnly(page) {
+  // 不重算篩選，直接翻頁（excludeFilteredRows 已是最新篩選結果）
+  const total = excludeFilteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  excludeCurrentPage = Math.min(Math.max(1, page), totalPages);
+  const start = (excludeCurrentPage - 1) * PAGE_SIZE;
+  const slice = excludeFilteredRows.slice(start, start + PAGE_SIZE);
+
+  excludeTableBody.innerHTML = "";
+  slice.forEach((row, i) => {
+    const key = getRowKey(row);
+    const tr = document.createElement("tr");
+    if (excludedIds.has(key)) tr.classList.add("excluded-row");
+    let cells = `<td class="col-check"><input type="checkbox" class="exclude-cb" data-id="${escapeHtml(key)}" ${excludedIds.has(key) ? "checked" : ""} /></td>`;
+    cells += `<td class="row-num">${start + i + 1}</td>`;
+    csvRawHeaders.forEach((h) => { cells += `<td>${escapeHtml((row[h] || "").replace(/^"|"$/g, ""))}</td>`; });
+    tr.innerHTML = cells;
+    excludeTableBody.appendChild(tr);
+  });
+
+  excludePrevBtn.disabled = excludeCurrentPage === 1;
+  excludeNextBtn.disabled = excludeCurrentPage === totalPages;
+  excludePageBtns.innerHTML = "";
+  for (let p = 1; p <= totalPages; p++) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "page-num-btn" + (p === excludeCurrentPage ? " active" : "");
+    btn.textContent = String(p);
+    btn.addEventListener("click", () => renderExcludePageOnly(p));
+    excludePageBtns.appendChild(btn);
+  }
+  const tableWrap = document.getElementById("exclude-table-wrap");
+  if (tableWrap) tableWrap.scrollTop = 0;
   syncCheckAll();
 }
 
@@ -639,22 +697,29 @@ function updateExcludeCountBadge() {
 function addExcludedGroup(groupName) {
   if (!groupName || excludedGroups.has(groupName)) return;
   excludedGroups.add(groupName);
-  csvRawRows.filter((r) => getRowGroup(r) === groupName).forEach((r) => excludedIds.add(getRowKey(r)));
+  const isNoGroup = groupName === "__no_group__";
+  csvRawRows
+    .filter((r) => isNoGroup ? !getRowGroup(r) : getRowGroup(r) === groupName)
+    .forEach((r) => excludedIds.add(getRowKey(r)));
   const chip = document.createElement("span");
   chip.className = "excluded-chip";
   chip.dataset.group = groupName;
-  chip.innerHTML = `${escapeHtml(groupName)} <button type="button" class="chip-remove" data-group="${escapeHtml(groupName)}">✕</button>`;
+  const displayName = isNoGroup ? "（無組別）" : groupName;
+  chip.innerHTML = `${escapeHtml(displayName)} <button type="button" class="chip-remove" data-group="${escapeHtml(groupName)}">✕</button>`;
   excludedGroupsChips.appendChild(chip);
-  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage);
+  renderExcludePageOnly(excludeCurrentPage);
   updateExcludeCountBadge();
 }
 
 function removeExcludedGroup(groupName) {
   excludedGroups.delete(groupName);
-  csvRawRows.filter((r) => getRowGroup(r) === groupName).forEach((r) => excludedIds.delete(getRowKey(r)));
+  const isNoGroup = groupName === "__no_group__";
+  csvRawRows
+    .filter((r) => isNoGroup ? !getRowGroup(r) : getRowGroup(r) === groupName)
+    .forEach((r) => excludedIds.delete(getRowKey(r)));
   const chip = excludedGroupsChips.querySelector(`span[data-group="${CSS.escape(groupName)}"]`);
   if (chip) chip.remove();
-  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage);
+  renderExcludePageOnly(excludeCurrentPage);
   updateExcludeCountBadge();
 }
 
@@ -682,16 +747,8 @@ excludedGroupsChips.addEventListener("click", (e) => {
   removeExcludedGroup(btn.dataset.group);
 });
 
-excludeFilterSelect.addEventListener("change", () => {
-  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, 1);
-});
-
-excludePrevBtn.addEventListener("click", () =>
-  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage - 1),
-);
-excludeNextBtn.addEventListener("click", () =>
-  renderExcludeTableRaw(csvRawRows, excludeFilterSelect.value, excludeCurrentPage + 1),
-);
+excludePrevBtn.addEventListener("click", () => renderExcludePageOnly(excludeCurrentPage - 1));
+excludeNextBtn.addEventListener("click", () => renderExcludePageOnly(excludeCurrentPage + 1));
 
 excludeTableBody.addEventListener("change", (e) => {
   const cb = e.target.closest(".exclude-cb");
@@ -1375,6 +1432,155 @@ async function previewShuffle() {
   renderShufflePreview(data.shuffled_students);
 }
 
+// ── 通用多選 dropdown（組別篩選）──
+// groups: 已排序的組別字串陣列
+// onChange(selectedSet) 在選擇變更時被呼叫
+function setupMultiselect(groups, triggerId, dropdownId, onChange) {
+  const trigger  = document.getElementById(triggerId);
+  const dropdown = document.getElementById(dropdownId);
+  const selected = new Set();
+
+  function buildDropdown() {
+    dropdown.innerHTML = "";
+    const allLabel = document.createElement("label");
+    const allCb = document.createElement("input");
+    allCb.type = "checkbox";
+    allCb.dataset.all = "1";
+    allCb.checked = true;
+    allLabel.appendChild(allCb);
+    allLabel.appendChild(document.createTextNode("全部"));
+    dropdown.appendChild(allLabel);
+
+    const hr = document.createElement("div");
+    hr.className = "multiselect-divider";
+    dropdown.appendChild(hr);
+
+    groups.forEach(g => {
+      const lbl = document.createElement("label");
+      const cb  = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = g;
+      lbl.appendChild(cb);
+      const displayName = g === "__no_group__" ? "（無組別）" : g === "" ? "（無組別）" : `第 ${g} 組`;
+      lbl.appendChild(document.createTextNode(displayName));
+      dropdown.appendChild(lbl);
+    });
+
+    dropdown.querySelectorAll("input[type=checkbox]").forEach(cb => {
+      cb.addEventListener("change", () => {
+        if (cb.dataset.all) {
+          selected.clear();
+          dropdown.querySelectorAll("input:not([data-all])").forEach(c => c.checked = false);
+          allCb.checked = true;
+        } else {
+          if (cb.checked) selected.add(cb.value);
+          else selected.delete(cb.value);
+          allCb.checked = selected.size === 0;
+        }
+        updateTriggerLabel();
+        onChange(selected);
+      });
+    });
+  }
+
+  function updateTriggerLabel() {
+    if (selected.size === 0) {
+      trigger.textContent = "全部 ▾";
+      trigger.classList.remove("has-selection");
+    } else {
+      trigger.textContent = [...selected].map(g =>
+        g === "__no_group__" || g === "" ? "（無組別）" : `第 ${g} 組`
+      ).join("、") + " ▾";
+      trigger.classList.add("has-selection");
+    }
+  }
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdown.hidden = !dropdown.hidden;
+  });
+  document.addEventListener("click", () => { dropdown.hidden = true; });
+  dropdown.addEventListener("click", e => e.stopPropagation());
+
+  buildDropdown();
+  return selected;
+}
+
+// ── 帶多選篩選的分頁名單（排位結果用）──
+function setupAssignmentPagedList(list, sectionEl, countId, tbodyId, tableWrapId, prevId, nextId, pageBtnsId, triggerId, dropdownId) {
+  const countEl    = document.getElementById(countId);
+  const tbody      = document.getElementById(tbodyId);
+  const tableWrap  = document.getElementById(tableWrapId);
+  const prevBtn    = document.getElementById(prevId);
+  const nextBtn    = document.getElementById(nextId);
+  const pageBtnsEl = document.getElementById(pageBtnsId);
+
+  countEl.textContent = `${list.length} 人`;
+
+  let currentPage = 1;
+  let filtered = list;
+
+  function render(page) {
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.max(1, Math.min(page, totalPages));
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const slice = filtered.slice(start, start + PAGE_SIZE);
+    tbody.innerHTML = slice.map((s, i) =>
+      `<tr><td class="row-num">${start + i + 1}</td><td>${escapeHtml(s.group_name ?? "")}</td><td>${escapeHtml(s.student_id)}</td><td>${escapeHtml(s.student_name)}</td></tr>`
+    ).join("");
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+    pageBtnsEl.innerHTML = "";
+    for (let p = 1; p <= totalPages; p++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "page-num-btn" + (p === currentPage ? " active" : "");
+      btn.textContent = String(p);
+      btn.addEventListener("click", () => render(p));
+      pageBtnsEl.appendChild(btn);
+    }
+    if (tableWrap) tableWrap.scrollTop = 0;
+  }
+
+  const groups = [...new Set(list.map(s => s.group_name ?? ""))].sort((a, b) =>
+    isNaN(a) || isNaN(b) ? a.localeCompare(b) : Number(a) - Number(b)
+  );
+  setupMultiselect(groups, triggerId, dropdownId, (sel) => {
+    filtered = sel.size === 0 ? list : list.filter(s => sel.has(s.group_name ?? ""));
+    render(1);
+  });
+
+  prevBtn.addEventListener("click", () => render(currentPage - 1));
+  nextBtn.addEventListener("click", () => render(currentPage + 1));
+
+  sectionEl.hidden = list.length === 0;
+  if (list.length > 0) render(1);
+}
+
+function renderAssignmentRoster(assigned, unassigned) {
+  const panel    = document.getElementById("assignment-roster-panel");
+  const divider  = document.getElementById("roster-detail-divider");
+  const uSection = document.getElementById("unassigned-section");
+  const aSection = document.getElementById("assigned-section");
+
+  setupAssignmentPagedList(
+    unassigned, uSection,
+    "unassigned-section-count", "unassigned-list-body", "unassigned-table-wrap",
+    "unassigned-prev-btn", "unassigned-next-btn", "unassigned-page-btns",
+    "unassigned-ms-trigger", "unassigned-ms-dropdown"
+  );
+  setupAssignmentPagedList(
+    assigned, aSection,
+    "assigned-section-count", "assigned-list-body", "assigned-table-wrap",
+    "assigned-prev-btn", "assigned-next-btn", "assigned-page-btns",
+    "assigned-ms-trigger", "assigned-ms-dropdown"
+  );
+
+  divider.hidden = (unassigned.length === 0 || assigned.length === 0);
+  panel.hidden   = (unassigned.length === 0 && assigned.length === 0);
+}
+
 async function runAssignment() {
   runBtn.disabled = true;
   runBtn.textContent = "排位中...";
@@ -1394,9 +1600,7 @@ async function runAssignment() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "排位失敗");
 
-    const summaryMsg =
-      `已安排 ${data.assigned_count} 人，未安排 ${data.unassigned_count} 人\n` +
-      `共 ${data.student_count} 位學生，可用座位 ${data.usable_seats} 格`;
+    const summaryMsg = `已安排 ${data.assigned_count} 人，未安排 ${data.unassigned_count} 人（共 ${data.student_count} 位學生）`;
     resultText.textContent = summaryMsg;
 
     lastExamId = data.exam_id;
@@ -1407,6 +1611,8 @@ async function runAssignment() {
     const mapData = await mapRes.json();
     if (!mapRes.ok) throw new Error(mapData.error || "讀取座位圖失敗");
     renderSeatMap(mapData);
+
+    renderAssignmentRoster(data.assigned_students || [], data.unassigned_students || []);
 
     window._goToResultStep && window._goToResultStep();
     showModal(summaryMsg, data.unassigned_count > 0 ? "warning" : "success", "排位完成");

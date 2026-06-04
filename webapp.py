@@ -286,6 +286,7 @@ class SmartSeatHandler(BaseHTTPRequestHandler):
             )
             save_assignments(conn, exam_id, assignments)
 
+            assigned_ids = {a["student_id"] for a in assignments}
             json_response(
                 self,
                 {
@@ -297,6 +298,22 @@ class SmartSeatHandler(BaseHTTPRequestHandler):
                     "rows": rows,
                     "cols": cols,
                     "student_count": len(students),
+                    "assigned_students": [
+                        {
+                            "student_id": s["student_id"],
+                            "student_name": s["student_name"],
+                            "group_name": s["group_name"],
+                        }
+                        for s in shuffled if s["student_id"] in assigned_ids
+                    ],
+                    "unassigned_students": [
+                        {
+                            "student_id": s["student_id"],
+                            "student_name": s["student_name"],
+                            "group_name": s["group_name"],
+                        }
+                        for s in unassigned
+                    ],
                     "shuffled_preview": [
                         {
                             "student_id": s["student_id"],

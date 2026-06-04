@@ -1333,6 +1333,74 @@ table {
   opacity: 1;
 }
 
+/* ── 多選組別 dropdown ── */
+.multiselect-wrap {
+  position: relative;
+}
+.multiselect-trigger {
+  padding: 4px 10px;
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 120px;
+  text-align: left;
+  transition: border-color .15s;
+}
+.multiselect-trigger:hover { border-color: var(--primary); color: var(--primary); }
+.multiselect-trigger.has-selection { border-color: var(--primary); color: var(--primary); background: var(--primary-lt); }
+.multiselect-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #fff;
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 500;
+  min-width: 160px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.multiselect-dropdown label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .1s;
+}
+.multiselect-dropdown label:hover { background: var(--primary-lt); }
+.multiselect-dropdown label input[type="checkbox"] { accent-color: var(--primary); width: 14px; height: 14px; flex-shrink: 0; }
+.multiselect-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── 排位名單明細區塊 ── */
+.roster-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+  margin: 0 0 10px;
+}
+.roster-section-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.unassigned-title { color: var(--danger); }
+.unassigned-dot   { background: var(--danger); }
+.assigned-title   { color: var(--success); }
+.assigned-dot-sm  { background: #818cf8; }
+
 /* ── 合併不可用格 ── */
 .seatmap-table td.merged-block {
   font-size: 13px;
@@ -1765,6 +1833,15 @@ table {
 }
 .page-nav-spacer {
   flex: 1;
+}
+.page-nav-bar-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--border);
 }
 
 /* ── 欄位對應三欄版面 ── */
